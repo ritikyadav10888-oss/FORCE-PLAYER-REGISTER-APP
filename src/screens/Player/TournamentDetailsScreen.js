@@ -1,9 +1,10 @@
 import { LucideArrowLeft, LucideCalendar, LucideClock, LucideIndianRupee, LucideMapPin, LucideTrophy, LucideUsers } from 'lucide-react-native';
 import React from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Removed Share from here
+import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Removed Share from here
+
 import Button from '../../components/Button';
 import Container from '../../components/Container';
-import { API_URL } from '../../config';
+import { API_URL, RAZORPAY_KEY_ID } from '../../config';
 import { useAuth } from '../../context/AuthContext';
 import { useTournaments } from '../../context/TournamentContext';
 import { theme } from '../../styles/theme';
@@ -30,6 +31,9 @@ export default function TournamentDetailsScreen({ route, navigation }) {
         });
     };
 
+
+
+
     const handlePayAndJoin = async () => {
         if (!tournament.entryFee) {
             handleJoin(); // Fallback for free tournaments
@@ -37,13 +41,7 @@ export default function TournamentDetailsScreen({ route, navigation }) {
         }
 
         try {
-            const res = await loadRazorpay();
-            if (!res) {
-                Alert.alert("Error", "Razorpay SDK failed to load. Are you online?");
-                return;
-            }
-
-            // Fetch Public Key
+            // Fetch Public Key (with Local Fallback)
             let rzpKeyId;
             try {
                 const configRes = await fetch(`${API_URL}/config`);
@@ -52,8 +50,6 @@ export default function TournamentDetailsScreen({ route, navigation }) {
             } catch (err) {
                 console.warn("Failed to fetch config from server, using local fallback", err);
             }
-
-            // Fallback to local key if server key is missing or request failed
             if (!rzpKeyId) rzpKeyId = RAZORPAY_KEY_ID;
 
             if (!rzpKeyId) {
@@ -71,64 +67,52 @@ export default function TournamentDetailsScreen({ route, navigation }) {
             const order = await orderResponse.json();
             if (!orderResponse.ok) throw new Error(order.error);
 
-            // 2. Open Checkout
+            // Payment Options
             const options = {
+                description: `Entry Fee for ${tournament.name}`,
+                image: 'https://via.placeholder.com/150',
+                currency: order.currency,
                 key: rzpKeyId,
                 amount: order.amount,
-                currency: order.currency,
-                name: "Force Sports",
-                description: `Entry Fee for ${tournament.name}`,
-                image: "https://via.placeholder.com/150",
+                name: 'Force Sports',
                 order_id: order.id,
-                handler: async function (response) {
-                    try {
-                        // 3. Verify and Join
-                        const verifyRes = await fetch(`${API_URL}/payments/verify-and-join`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_signature: response.razorpay_signature,
-                                tournamentId: tournament.id,
-                                userId: user.id,
-                                playerDetails: {
-                                    name: user.name,
-                                    email: user.email,
-                                    mobile: user.mobile,
-                                    game: user.game,
-                                    strength: user.strength
-                                }
-                            })
-                        });
-
-                        const result = await verifyRes.json();
-                        if (verifyRes.ok) {
-                            Alert.alert("Success", "Payment Successful! You have joined the tournament.");
-                            await loadTournaments();
-                            navigation.goBack();
-                        } else {
-                            Alert.alert("Verification Failed", result.error);
-                        }
-                    } catch (e) {
-                        Alert.alert("Error", "Payment Verification Failed: " + e.message);
-                    }
-                },
                 prefill: {
-                    name: user.name,
                     email: user.email,
-                    contact: user.mobile
+                    contact: user.mobile,
+                    name: user.name
                 },
-                theme: {
-                    color: theme.colors.primary
-                }
+                theme: { color: theme.colors.primary }
             };
 
-            const rzp1 = new window.Razorpay(options);
-            rzp1.on('payment.failed', function (response) {
-                Alert.alert("Payment Failed", response.error.description);
-            });
-            rzp1.open();
+            // 2. Open Checkout (Platform Specific)
+            if (Platform.OS === 'web') {
+                const res = await loadRazorpay();
+                if (!res) {
+                    Alert.alert("Error", "Razorpay SDK failed to load. Are you online?");
+                    return;
+                }
+
+                options.handler = async function (response) {
+                    await verifyPayment(response);
+                };
+
+                const rzp1 = new window.Razorpay(options);
+                rzp1.on('payment.failed', function (response) {
+                    Alert.alert("Payment Failed", response.error.description);
+                });
+                rzp1.open();
+
+            } else {
+                // Native (Android/iOS)
+                const RazorpayCheckout = require('react-native-razorpay').default;
+                RazorpayCheckout.open(options).then((data) => {
+                    // handle success
+                    verifyPayment(data);
+                }).catch((error) => {
+                    // handle failure
+                    Alert.alert('Error', `Error: ${error.code} | ${error.description}`);
+                });
+            }
 
         } catch (e) {
             console.error(e);
@@ -136,15 +120,42 @@ export default function TournamentDetailsScreen({ route, navigation }) {
         }
     };
 
-    const handleJoin = () => {
-        // Trigger the join flow (Payment Modal) from Dashboard
-        // Since we are in a stack, we can pass a param back or use a Context function that handles UI
-        // For simplicity, we'll navigate back to Dashboard with a param to open the modal,
-        // OR better, duplicate the join logic here if we had the modal available globally.
-        // Let's pass a callback or navigate back for now to keep it simple, 
-        // OR better: Implement basic join alert here similar to dashboard shortcut
+    const verifyPayment = async (response) => {
+        try {
+            const verifyRes = await fetch(`${API_URL}/payments/verify-and-join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                    tournamentId: tournament.id,
+                    userId: user.id,
+                    playerDetails: {
+                        name: user.name,
+                        email: user.email,
+                        mobile: user.mobile,
+                        game: user.game,
+                        strength: user.strength
+                    }
+                })
+            });
 
-        // Since PaymentModal is in Dashboard, efficient way is to navigate back with params
+            const result = await verifyRes.json();
+            if (verifyRes.ok) {
+                Alert.alert("Success", "Payment Successful! You have joined the tournament.");
+                await loadTournaments();
+                navigation.goBack();
+            } else {
+                Alert.alert("Verification Failed", result.error);
+            }
+        } catch (e) {
+            Alert.alert("Error", "Payment Verification Failed: " + e.message);
+        }
+    };
+
+    const handleJoin = () => {
+        // ... (as before)
         navigation.navigate('PlayerDashboard', { initiateJoin: tournament });
     };
 

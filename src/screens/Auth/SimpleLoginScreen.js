@@ -3,6 +3,7 @@ import { LucideArrowRight, LucideLock, LucideMail } from 'lucide-react-native';
 import { useState } from 'react';
 import { Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import { useAuth } from '../../context/AuthContext';
@@ -85,7 +86,7 @@ export default function SimpleLoginScreen({ navigation }) {
                         <View style={styles.logoContainer}>
                             <View style={styles.logoGlow} />
                             <Image
-                                source={require('../../assets/logo.png')}
+                                source={require('../../../assets/force_logo.png')}
                                 style={styles.logo}
                                 resizeMode="contain"
                             />

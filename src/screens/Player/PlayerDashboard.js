@@ -115,61 +115,48 @@ export default function PlayerDashboard({ navigation, route }) {
         const normalizedType = (item.type || '').toUpperCase();
 
         const handleJoinPress = () => {
-            if (normalizedType === 'SINGLE') {
-                // One-Click Join for Singles
-                // One-Click Join for Singles
-                Alert.alert(
-                    "Confirm Entry & T&C",
-                    `Join ${item.name}? Entry Fee: ₹${item.entryFee || 500}\n\nBy joining, you agree:\n1. You cannot withdraw your name once joined.\n2. Entry fees are non-refundable.`,
-                    [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                            text: "Agree & Pay",
-                            onPress: () => prepareJoin(item)
-                        }
-                    ]
-                );
-            } else {
-                // Modal for Team/Double
-                setSelectedJoinTournament(item);
-                setJoinModalVisible(true);
-            }
-        };
+            console.log("Join Pressed. Item:", item.name, "Status:", item.status, "IsJoined:", isJoined);
 
-        const handleLeavePress = () => {
-            Alert.alert(
-                "Withdraw",
-                `Leave ${item.name}?`,
-                [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Leave", onPress: () => executeLeave(item), style: 'destructive' }
-                ]
-            );
+            if (isJoined) {
+                Alert.alert("Info", "You are already enrolled.");
+                return;
+            }
+            if (item.status !== 'PENDING') {
+                Alert.alert("Closed", "Tournament is " + (item.status || 'Unknown'));
+                return;
+            }
+
+            Alert.alert("Debug", "Redirecting to Details...");
+            navigation.navigate('TournamentDetails', { tournament: item });
         };
 
         return (
-            <TouchableOpacity onPress={() => navigation.navigate('TournamentDetails', { tournament: item })} activeOpacity={0.9}>
+            <View>
                 <Card variant="surface" padding="m" style={styles.tCard}>
-                    {item.banner && (
-                        <Image
-                            source={{ uri: `${API_URL.replace('/api', '')}/${item.banner}` }}
-                            style={styles.tBanner}
-                            resizeMode="cover"
-                        />
-                    )}
-                    <View style={styles.tHeader}>
-                        <View style={styles.tBadge}>
-                            <Text style={styles.tBadgeText}>{item.gameType}</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('TournamentDetails', { tournament: item })} activeOpacity={0.9}>
+                        <View>
+                            {item.banner && (
+                                <Image
+                                    source={{ uri: `${API_URL.replace('/api', '')}/${item.banner}` }}
+                                    style={styles.tBanner}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            <View style={styles.tHeader}>
+                                <View style={styles.tBadge}>
+                                    <Text style={styles.tBadgeText}>{item.gameType}</Text>
+                                </View>
+                                <Text style={styles.tPrice}>₹{item.entryFee || 500}</Text>
+                            </View>
+
+                            <Text style={styles.tName}>{item.name}</Text>
+
+                            <View style={styles.tInfoRow}>
+                                <LucideActivity size={14} color={theme.colors.textTertiary} />
+                                <Text style={styles.tInfoText}>{item.date} • {item.time || 'TBD'}</Text>
+                            </View>
                         </View>
-                        <Text style={styles.tPrice}>₹{item.entryFee || 500}</Text>
-                    </View>
-
-                    <Text style={styles.tName}>{item.name}</Text>
-
-                    <View style={styles.tInfoRow}>
-                        <LucideActivity size={14} color={theme.colors.textTertiary} />
-                        <Text style={styles.tInfoText}>{item.date} • {item.time || 'TBD'}</Text>
-                    </View>
+                    </TouchableOpacity>
 
                     <View style={styles.tFooter}>
                         <View style={styles.playerCount}>
@@ -178,15 +165,17 @@ export default function PlayerDashboard({ navigation, route }) {
                         <Button
                             title={isJoined ? "ENROLLED" : (item.status === 'PENDING' ? `JOIN (₹${item.entryFee || 500})` : "CLOSED")}
                             variant={isJoined ? "outline" : (item.status === 'PENDING' ? "primary" : "ghost")}
-                            disabled={true}
-                            onPress={!isJoined && canJoin ? handleJoinPress : undefined}
+                            disabled={false}
+                            onPress={handleJoinPress}
                             small
                             style={styles.joinBtn}
                         />
                     </View>
                 </Card>
-            </TouchableOpacity>
+            </View>
         );
+
+
     };
 
     return (
