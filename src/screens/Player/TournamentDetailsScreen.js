@@ -44,9 +44,17 @@ export default function TournamentDetailsScreen({ route, navigation }) {
             }
 
             // Fetch Public Key
-            const configRes = await fetch(`${API_URL}/config`);
-            const config = await configRes.json();
-            const rzpKeyId = config.razorpayKeyId;
+            let rzpKeyId;
+            try {
+                const configRes = await fetch(`${API_URL}/config`);
+                const config = await configRes.json();
+                rzpKeyId = config.razorpayKeyId;
+            } catch (err) {
+                console.warn("Failed to fetch config from server, using local fallback", err);
+            }
+
+            // Fallback to local key if server key is missing or request failed
+            if (!rzpKeyId) rzpKeyId = RAZORPAY_KEY_ID;
 
             if (!rzpKeyId) {
                 Alert.alert("Configuration Error", "Payment Gateway Key missing.");
