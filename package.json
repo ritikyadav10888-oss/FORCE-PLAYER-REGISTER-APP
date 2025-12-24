@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "npx expo export -p web",
+    "vercel-build": "npx expo export -p web",
     "lint": "expo lint"
   },
   "dependencies": {
