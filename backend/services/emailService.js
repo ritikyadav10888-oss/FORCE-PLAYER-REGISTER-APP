@@ -7,7 +7,11 @@ const createTransporter = () => {
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASSWORD // Gmail App Password
-        }
+        },
+        // Add timeouts to prevent hanging
+        connectionTimeout: 5000, // 5 seconds
+        greetingTimeout: 5000,
+        socketTimeout: 5000
     });
 };
 
@@ -97,7 +101,7 @@ const sendPasswordResetEmail = async (email, otp, userName) => {
             <body>
                 <div class="container">
                     <div class="header">
-                        <h1>⚡ FORCE</h1>
+                        <h1><img src="../../assets/force_logo.png"> FORCE</h1>
                         <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">DOMINATE THE FIELD</p>
                     </div>
                     

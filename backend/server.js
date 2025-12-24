@@ -269,10 +269,10 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
 app.post('/api/auth/forgot-password', async (req, res) => {
     try {
-        let { email, role } = req.body;
+        let { email } = req.body;
         if (email) email = email.toLowerCase();
 
-        const user = await User.findOne({ email, role });
+        const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ error: 'No account found with this email address' });
 
         // Generate 4 digit OTP
@@ -306,7 +306,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
 app.post('/api/auth/reset-password', async (req, res) => {
     try {
-        let { email, role, otp, newPassword } = req.body;
+        let { email, otp, newPassword } = req.body;
         if (email) email = email.toLowerCase();
 
         // Validate new password strength
@@ -317,7 +317,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
         const user = await User.findOne({
             email,
-            role,
             resetPasswordOTP: otp,
             resetPasswordExpires: { $gt: Date.now() }
         });

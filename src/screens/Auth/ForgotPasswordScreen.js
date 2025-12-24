@@ -44,18 +44,35 @@ export default function ForgotPasswordScreen({ navigation, route }) {
 
         try {
             setLoading(true);
+            console.log('Sending OTP to:', email);
             const response = await fetch(`${API_URL}/auth/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email.toLowerCase().trim(), role: defaultRole })
             });
             const data = await response.json();
+            console.log('Forgot Password Response:', data);
+
             if (!response.ok) throw new Error(data.error);
 
-            Alert.alert("OTP Sent", "Check your email for the reset code");
+            // Update UI first
             setStep(2);
+
+            // In dev mode or fallback, we might get OTP in response for convenience (optional)
+            if (data.otp) {
+                console.log("DEV OTP:", data.otp);
+                // Small delay to let the UI update before the alert freezes it (on web)
+                setTimeout(() => {
+                    Alert.alert("Dev Mode", `OTP is ${data.otp}`);
+                }, 100);
+            } else {
+                setTimeout(() => {
+                    Alert.alert("OTP Sent", "Check your email for the reset code");
+                }, 100);
+            }
         } catch (e) {
-            Alert.alert("Error", e.message || "Failed to send OTP");
+            console.error("Send OTP Error:", e);
+            Alert.alert("Error", e.message || "Failed to send OTP. Check network connection.");
         } finally {
             setLoading(false);
         }

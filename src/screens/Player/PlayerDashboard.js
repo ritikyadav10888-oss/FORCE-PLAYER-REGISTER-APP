@@ -115,18 +115,7 @@ export default function PlayerDashboard({ navigation, route }) {
         const normalizedType = (item.type || '').toUpperCase();
 
         const handleJoinPress = () => {
-            console.log("Join Pressed. Item:", item.name, "Status:", item.status, "IsJoined:", isJoined);
-
-            if (isJoined) {
-                Alert.alert("Info", "You are already enrolled.");
-                return;
-            }
-            if (item.status !== 'PENDING') {
-                Alert.alert("Closed", "Tournament is " + (item.status || 'Unknown'));
-                return;
-            }
-
-            Alert.alert("Debug", "Redirecting to Details...");
+            // Redirect to Details Screen for Payment Flow
             navigation.navigate('TournamentDetails', { tournament: item });
         };
 
@@ -165,8 +154,8 @@ export default function PlayerDashboard({ navigation, route }) {
                         <Button
                             title={isJoined ? "ENROLLED" : (item.status === 'PENDING' ? `JOIN (₹${item.entryFee || 500})` : "CLOSED")}
                             variant={isJoined ? "outline" : (item.status === 'PENDING' ? "primary" : "ghost")}
-                            disabled={false}
-                            onPress={handleJoinPress}
+                            disabled={!canJoin}
+                            onPress={!isJoined && canJoin ? handleJoinPress : undefined}
                             small
                             style={styles.joinBtn}
                         />
