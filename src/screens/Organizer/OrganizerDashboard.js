@@ -4,7 +4,6 @@ import { LucideCalendar, LucideCheckCircle, LucideChevronDown, LucideClock, Luci
 import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Button from '../../components/Button';
-import Container from '../../components/Container';
 import Input from '../../components/Input';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
@@ -29,27 +28,29 @@ export default function OrganizerDashboard({ navigation }) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [showSportPicker, setShowSportPicker] = useState(false);
-    const [showFormatPicker, setShowFormatPicker] = useState(false);
     const [showTournamentFormatPicker, setShowTournamentFormatPicker] = useState(false);
+    const [showRegistrationPicker, setShowRegistrationPicker] = useState(false);
+    const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
-    const [newTournament, setNewTournament] = useState({ name: '', gameType: '', date: '', time: '', entryFee: '', type: 'Single', format: 'KNOCKOUT', address: '' });
+    const [newTournament, setNewTournament] = useState({ name: '', gameType: '', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', type: 'Single', format: 'KNOCKOUT', address: '' });
     const [formErrors, setFormErrors] = useState({});
+    const [selectedAnalytic, setSelectedAnalytic] = useState(null); // For analytics drill-down
 
-    const FORMATS = ['Single', 'Double', 'Team'];
     const TOURNAMENT_FORMATS = ['KNOCKOUT', 'ROUND_ROBIN'];
-    const SPORTS_BY_FORMAT = {
-        'Single': ['Badminton', 'Tennis', 'Table Tennis', 'Chess', 'Carrom'],
-        'Double': ['Badminton', 'Tennis', 'Table Tennis'],
-        'Team': ['Cricket', 'Football', 'Basketball', 'Volleyball', 'Hockey', 'Kabaddi']
-    };
+    const ALL_SPORTS = [
+        'Archery', 'Athletics', 'Badminton', 'Basketball', 'Billiards & Snooker', 'Boxing',
+        'Carrom', 'Chess', 'Cricket', 'Cycling', 'Football', 'Golf', 'Gymnastics',
+        'Handball', 'Hockey', 'Judo', 'Kabaddi', 'Karate', 'Kho Kho', 'Rugby',
+        'Shooting', 'Squash', 'Swimming', 'Table Tennis', 'Taekwondo', 'Tennis',
+        'Throwball', 'Volleyball', 'Wrestling'
+    ].sort();
 
     const normalizedGame = user.game ? user.game.charAt(0).toUpperCase() + user.game.slice(1).toLowerCase() : null;
 
-    // Filter sports based on Selected Format AND User Specialization
-    const currentFormatSports = SPORTS_BY_FORMAT[newTournament.type] || [];
+    // Filter sports based only on User Specialization if applicable
     const SPORTS = normalizedGame
-        ? (currentFormatSports.includes(normalizedGame) ? [normalizedGame] : [])
-        : currentFormatSports;
+        ? (ALL_SPORTS.includes(normalizedGame) ? [normalizedGame] : ALL_SPORTS)
+        : ALL_SPORTS;
 
     useEffect(() => {
         const fetchOrganizerEarnings = async () => {
@@ -222,7 +223,7 @@ export default function OrganizerDashboard({ navigation }) {
             setShowCreate(false);
             setIsEditing(false);
             setEditingId(null);
-            setNewTournament({ name: '', gameType: 'Single', date: '', time: '', entryFee: '', address: '' });
+            setNewTournament({ name: '', gameType: 'Single', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', address: '' });
             setSelectedBanner(null);
             setFormErrors({});
         } catch (error) {
@@ -257,7 +258,9 @@ export default function OrganizerDashboard({ navigation }) {
             entryFee: t.entryFee ? String(t.entryFee) : '',
             type: t.type,
             format: t.format || 'KNOCKOUT',
-            address: t.address || ''
+            address: t.address || '',
+            endTime: t.endTime || '',
+            registrationDeadline: t.registrationDeadline || ''
         });
         setEditingId(t.id);
         setIsEditing(true);
@@ -412,13 +415,21 @@ export default function OrganizerDashboard({ navigation }) {
                         styles.statusBadge,
                         { color: currentTournament.status === 'ONGOING' ? theme.colors.success : theme.colors.textSecondary }
                     ]}>
-                        {currentTournament.status}
+                        {currentTournament.status === 'PENDING' ? 'Registration Open' : currentTournament.status}
                     </Text>
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
                     <Text style={styles.detailSub}>📍 {currentTournament.address || 'Address not provided'}</Text>
-                    <Text style={styles.detailSub}>{currentTournament.type} | {currentTournament.gameType} | {currentTournament.date} {currentTournament.time ? `at ${currentTournament.time}` : ''}</Text>
+                    <Text style={styles.detailSub}>{currentTournament.type} | {currentTournament.gameType}</Text>
+                    <Text style={styles.detailSub}>
+                        📅 {currentTournament.date} {currentTournament.time} {currentTournament.endTime ? `- ${currentTournament.endTime}` : ''}
+                    </Text>
+                    {currentTournament.registrationDeadline && (
+                        <Text style={{ color: theme.colors.error, fontSize: 13, marginTop: 4, fontWeight: '500' }}>
+                            🛑 Reg. Deadline: {currentTournament.registrationDeadline}
+                        </Text>
+                    )}
 
                     <View style={styles.actionButtons}>
                         <Text style={styles.label}>Control Panel:</Text>
@@ -513,55 +524,234 @@ export default function OrganizerDashboard({ navigation }) {
                         </View>
                     )}
 
-                    <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Joined Athletes ({currentTournament.players.length})</Text>
-                    {currentTournament.players.map((p, index) => (
-                        <TouchableOpacity key={index} style={styles.playerRow} onPress={() => { console.log('Selected Player:', p); setSelectedPlayer(p); }}>
-                            {/* Check-In Toggle */}
-                            {/* Check-In Verification Button */}
-                            <View style={{ marginRight: 12, justifyContent: 'center' }}>
-                                <Button
-                                    title={p.checkInStatus ? "VERIFIED" : "VERIFY"}
-                                    small
-                                    variant="outline"
-                                    onPress={() => toggleCheckIn(currentTournament.id, p.user?._id || p.user, p.checkInStatus)}
-                                    style={{
-                                        paddingHorizontal: 12,
-                                        paddingVertical: 6,
-                                        minHeight: 36,
-                                        borderColor: p.checkInStatus ? theme.colors.success : theme.colors.primary,
-                                        backgroundColor: p.checkInStatus ? 'rgba(76, 175, 80, 0.1)' : 'transparent'
-                                    }}
-                                    textStyle={{
-                                        color: p.checkInStatus ? theme.colors.success : theme.colors.primary,
-                                        fontSize: 11,
-                                        fontWeight: 'bold'
-                                    }}
-                                />
+                    {/* Player Stats Analytics */}
+                    {currentTournament.players.length > 0 && currentTournament.gameType && (
+                        <View style={{ marginTop: 20, marginBottom: 10, padding: 15, backgroundColor: theme.colors.surfaceLight, borderRadius: 12 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text style={styles.sectionTitle}>
+                                    📊 {currentTournament.gameType} Analytics
+                                </Text>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.colors.primary }}>{currentTournament.players.length}</Text>
+                                    <Text style={{ fontSize: 10, color: theme.colors.textSecondary }}>Total Enrolled</Text>
+                                </View>
+                            </View>
+                            <Text style={{ fontSize: 12, color: theme.colors.textSecondary, marginBottom: 10 }}> Breakdown of enrolled players</Text>
+
+                            <View style={{ marginBottom: 10, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#eee' }}>
+                                {/* Header */}
+                                <View style={{ flexDirection: 'row', backgroundColor: '#f8f9fa', paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                                    <Text style={{ flex: 1, fontSize: 12, fontWeight: 'bold', color: '#666' }}>Category</Text>
+                                    <Text style={{ width: 60, fontSize: 12, fontWeight: 'bold', color: '#666', textAlign: 'center' }}>Count</Text>
+                                </View>
+                                {(() => {
+                                    const stats = {};
+                                    const sport = currentTournament.gameType;
+
+                                    currentTournament.players.forEach(p => {
+                                        const details = p.gameDetails || {};
+                                        if (!details || Object.keys(details).length === 0) return;
+
+                                        let key = '';
+
+                                        // --- DEEP ANALYTICS LOGIC ---
+                                        if (sport === 'Cricket') {
+                                            if (details.role) {
+                                                key = details.role;
+                                                if ((details.role === 'Batsman' || details.role === 'Wicket Keeper') && details.batStyle) {
+                                                    key += ` (${details.batStyle})`;
+                                                } else if (details.role === 'Bowler' && details.bowlStyle && details.bowlStyle !== 'None') {
+                                                    key += ` (${details.bowlStyle})`;
+                                                } else if (details.role === 'All Rounder') {
+                                                    if (details.batStyle) key += ` (${details.batStyle})`;
+                                                }
+                                            }
+                                        }
+                                        else if (sport === 'Football') {
+                                            if (details.position) {
+                                                key = details.position;
+                                                if (details.foot && details.foot !== 'Both') key += ` (${details.foot})`;
+                                            }
+                                        }
+                                        else if (['Badminton', 'Tennis', 'Squash', 'Table Tennis'].includes(sport)) {
+                                            // Racquet Sports
+                                            const hand = details.hand || details.grip; // Hand or Grip
+                                            const style = details.style || details.category || details.backhand;
+                                            if (hand) key = hand;
+                                            if (style) key += ` - ${style}`;
+                                        }
+                                        else if (['Kabaddi', 'Kho Kho', 'Basketball', 'Hockey', 'Handball', 'Rugby', 'Volleyball'].includes(sport)) {
+                                            // Position/Role based team sports
+                                            key = details.position || details.role || '';
+                                        }
+                                        else if (['Boxing', 'Judo', 'Karate', 'Taekwondo', 'Wrestling'].includes(sport)) {
+                                            // Combat Sports
+                                            const weight = details.weightClass || details.weight;
+                                            const belt = details.belt || details.style || details.stance;
+                                            if (weight) key = weight;
+                                            if (belt) key += ` (${belt})`;
+                                        }
+                                        else if (['Archery', 'Shooting'].includes(sport)) {
+                                            const type = details.bowType || details.gunType;
+                                            if (type) key = type;
+                                        }
+
+                                        // Fallback if specific logic didn't catch or produced empty
+                                        if (!key) {
+                                            Object.values(details).forEach(val => {
+                                                if (val && typeof val === 'string' && val !== 'None') {
+                                                    stats[val] = (stats[val] || 0) + 1;
+                                                }
+                                            });
+                                            return; // Logic handled by generic fallback returning multiple keys
+                                        }
+
+                                        if (key) {
+                                            stats[key] = (stats[key] || 0) + 1;
+                                        }
+                                    });
+
+                                    const keys = Object.keys(stats).sort();
+                                    if (keys.length === 0) return (
+                                        <View style={{ padding: 10 }}>
+                                            <Text style={{ fontSize: 12, fontStyle: 'italic', color: '#888' }}>No {sport} stats available.</Text>
+                                        </View>
+                                    );
+
+                                    return keys.map((key, idx) => (
+                                        <View key={key} style={{ flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: idx < keys.length - 1 ? 1 : 0, borderBottomColor: '#f0f0f0', alignItems: 'center' }}>
+                                            <Text style={{ flex: 1, fontSize: 13, color: '#333' }}>{key}</Text>
+                                            <View style={{ width: 60, alignItems: 'center' }}>
+                                                <View style={{ backgroundColor: theme.colors.surfaceLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                                                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: theme.colors.primary }}>{stats[key]}</Text>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    ));
+                                })()}
                             </View>
 
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={styles.playerName}>{p.name}</Text>
-                                    {p.checkInStatus && (
-                                        <LucideCheckCircle size={14} color={theme.colors.success} fill={theme.colors.success + '20'} />
-                                    )}
+                            {/* Detailed Roster Table */}
+                            <View style={{ marginTop: 20 }}>
+                                <Text style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 10, color: '#333' }}>Player Roster Details</Text>
+                                <View style={{ backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#eee' }}>
+                                    {/* Header */}
+                                    <View style={{ flexDirection: 'row', backgroundColor: '#f8f9fa', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                                        <Text style={{ flex: 1, fontSize: 12, fontWeight: 'bold', color: '#666' }}>Name</Text>
+                                        <Text style={{ flex: 2, fontSize: 12, fontWeight: 'bold', color: '#666' }}>Role & Attributes</Text>
+                                    </View>
+                                    {currentTournament.players.map((p, idx) => (
+                                        <View key={idx} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: idx < currentTournament.players.length - 1 ? 1 : 0, borderBottomColor: '#f0f0f0' }}>
+                                            <Text style={{ flex: 1, fontSize: 13, color: '#333', fontWeight: '500' }}>{p.name}</Text>
+                                            <Text style={{ flex: 2, fontSize: 13, color: '#555' }}>
+                                                {p.gameDetails ? (() => {
+                                                    const sport = currentTournament.gameType;
+                                                    const details = p.gameDetails;
+                                                    let text = '';
+
+                                                    if (sport === 'Cricket' && details.role) {
+                                                        text = details.role;
+                                                        if (details.role === 'Batsman' || details.role === 'Wicket Keeper') {
+                                                            if (details.batStyle) text += ` (${details.batStyle})`;
+                                                        } else if (details.role === 'Bowler') {
+                                                            if (details.bowlStyle && details.bowlStyle !== 'None') text += ` (${details.bowlStyle})`;
+                                                        } else if (details.role === 'All Rounder') {
+                                                            const parts = [];
+                                                            if (details.batStyle) parts.push(details.batStyle);
+                                                            if (details.bowlStyle && details.bowlStyle !== 'None') parts.push(details.bowlStyle);
+                                                            if (parts.length > 0) text += ` (${parts.join(' / ')})`;
+                                                        }
+                                                    }
+                                                    else if (sport === 'Football' && details.position) {
+                                                        text = details.position;
+                                                        if (details.foot && details.foot !== 'Both') text += ` (${details.foot})`;
+                                                    }
+                                                    else if (['Badminton', 'Tennis', 'Squash', 'Table Tennis'].includes(sport)) {
+                                                        const hand = details.hand || details.grip;
+                                                        const style = details.style || details.category || details.backhand;
+                                                        if (hand) text = hand;
+                                                        if (style) text += ` - ${style}`;
+                                                    }
+                                                    else if (['Kabaddi', 'Kho Kho', 'Basketball', 'Hockey', 'Handball', 'Rugby', 'Volleyball'].includes(sport)) {
+                                                        text = details.position || details.role || '';
+                                                    }
+                                                    else if (['Boxing', 'Judo', 'Karate', 'Taekwondo', 'Wrestling'].includes(sport)) {
+                                                        const weight = details.weightClass || details.weight;
+                                                        const belt = details.belt || details.style || details.stance;
+                                                        if (weight) text = weight;
+                                                        if (belt) text += ` (${belt})`;
+                                                    }
+                                                    else if (['Archery', 'Shooting'].includes(sport)) {
+                                                        text = details.bowType || details.gunType || '';
+                                                    }
+
+                                                    if (text) return text;
+                                                    return Object.values(details).filter(v => v && v !== 'None').join(' • ');
+                                                })() : 'No details'}
+                                            </Text>
+                                        </View>
+                                    ))}
                                 </View>
-                                <Text style={styles.playerDetail}>{p.email} • {p.mobile}</Text>
-                                <Text style={styles.playerDetail}>{p.strength} • {p.game}</Text>
                             </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <View style={styles.payBadge}>
-                                    <Text style={styles.payText}>{p.paymentStatus}</Text>
+                        </View>
+                    )
+                    }
+
+                    <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Joined Athletes ({currentTournament.players.length})</Text>
+                    {
+                        currentTournament.players.map((p, index) => (
+                            <TouchableOpacity key={index} style={styles.playerRow} onPress={() => { console.log('Selected Player:', p); setSelectedPlayer(p); }}>
+                                {/* Check-In Toggle */}
+                                {/* Check-In Verification Button */}
+                                <View style={{ marginRight: 12, justifyContent: 'center' }}>
+                                    <Button
+                                        title={p.checkInStatus ? "VERIFIED" : "VERIFY"}
+                                        small
+                                        variant="outline"
+                                        onPress={() => toggleCheckIn(currentTournament.id, p.user?._id || p.user, p.checkInStatus)}
+                                        style={{
+                                            paddingHorizontal: 12,
+                                            paddingVertical: 6,
+                                            minHeight: 36,
+                                            borderColor: p.checkInStatus ? theme.colors.success : theme.colors.primary,
+                                            backgroundColor: p.checkInStatus ? 'rgba(76, 175, 80, 0.1)' : 'transparent'
+                                        }}
+                                        textStyle={{
+                                            color: p.checkInStatus ? theme.colors.success : theme.colors.primary,
+                                            fontSize: 11,
+                                            fontWeight: 'bold'
+                                        }}
+                                    />
                                 </View>
-                                <Text style={{ color: theme.colors.primary, fontSize: 10, marginTop: 4 }}>View Details →</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
-                    {currentTournament.players.length === 0 && (
-                        <Text style={styles.emptyText}>Recruiting players...</Text>
-                    )}
-                </ScrollView>
-            </View>
+
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={styles.playerName}>{p.name}</Text>
+                                        {p.checkInStatus && (
+                                            <LucideCheckCircle size={14} color={theme.colors.success} fill={theme.colors.success + '20'} />
+                                        )}
+                                    </View>
+                                    <Text style={styles.playerDetail}>{p.email} • {p.mobile}</Text>
+                                    <Text style={[styles.playerDetail, { color: theme.colors.primary, fontWeight: '500' }]}>
+                                        {p.gameDetails ? Object.values(p.gameDetails).join(' • ') : `${p.strength} • ${p.game}`}
+                                    </Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <View style={styles.payBadge}>
+                                        <Text style={styles.payText}>{p.paymentStatus}</Text>
+                                    </View>
+                                    <Text style={{ color: theme.colors.primary, fontSize: 10, marginTop: 4 }}>View Details →</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    }
+                    {
+                        currentTournament.players.length === 0 && (
+                            <Text style={styles.emptyText}>Recruiting players...</Text>
+                        )
+                    }
+                </ScrollView >
+            </View >
         );
     };
 
@@ -615,7 +805,7 @@ export default function OrganizerDashboard({ navigation }) {
     };
 
     return (
-        <Container>
+        <View style={styles.container}>
             <View style={styles.header}>
                 <View>
                     <Text style={styles.title}>Organizer Dashboard</Text>
@@ -667,6 +857,7 @@ export default function OrganizerDashboard({ navigation }) {
                         value={newTournament.name}
                         onChangeText={t => handleFormChange('name', t)}
                         error={formErrors.name}
+                        variant="light"
                     />
 
                     <Input
@@ -675,24 +866,16 @@ export default function OrganizerDashboard({ navigation }) {
                         value={newTournament.address}
                         onChangeText={t => handleFormChange('address', t)}
                         error={formErrors.address}
+                        variant="light"
                     />
 
-                    {/* Format Dropdown */}
-                    <View style={{ marginBottom: 20 }}>
-                        <Text style={styles.label}>Game Format</Text>
-                        <TouchableOpacity onPress={() => setShowFormatPicker(true)} style={styles.dropdownBtn}>
-                            <Text style={{ color: newTournament.type ? '#fff' : theme.colors.textSecondary, fontSize: 16 }}>
-                                {newTournament.type || 'Select Format'}
-                            </Text>
-                            <LucideChevronDown size={20} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
+
 
                     {/* Sport Dropdown */}
                     <View style={{ marginBottom: 20 }}>
                         <Text style={styles.label}>Sport</Text>
                         <TouchableOpacity onPress={() => setShowSportPicker(true)} style={styles.dropdownBtn}>
-                            <Text style={{ color: newTournament.gameType ? '#fff' : theme.colors.textSecondary, fontSize: 16 }}>
+                            <Text style={{ color: newTournament.gameType ? '#000' : theme.colors.textSecondary, fontSize: 16 }}>
                                 {newTournament.gameType || 'Select Sport'}
                             </Text>
                             <LucideChevronDown size={20} color={theme.colors.textSecondary} />
@@ -704,7 +887,7 @@ export default function OrganizerDashboard({ navigation }) {
                     <View style={{ marginBottom: 20 }}>
                         <Text style={styles.label}>Tournament Format</Text>
                         <TouchableOpacity onPress={() => setShowTournamentFormatPicker(true)} style={styles.dropdownBtn}>
-                            <Text style={{ color: newTournament.format ? '#fff' : theme.colors.textSecondary, fontSize: 16 }}>
+                            <Text style={{ color: newTournament.format ? '#000' : theme.colors.textSecondary, fontSize: 16 }}>
                                 {newTournament.format === 'KNOCKOUT' ? 'Knockout (Elimination)' : newTournament.format === 'ROUND_ROBIN' ? 'Round Robin (League)' : 'Select Format'}
                             </Text>
                             <LucideChevronDown size={20} color={theme.colors.textSecondary} />
@@ -734,21 +917,7 @@ export default function OrganizerDashboard({ navigation }) {
                         </View>
                     </Modal>
 
-                    <Modal visible={showFormatPicker} transparent animationType="slide" onRequestClose={() => setShowFormatPicker(false)}>
-                        <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>Select Format</Text>
-                                <ScrollView>
-                                    {FORMATS.map(f => (
-                                        <TouchableOpacity key={f} onPress={() => { handleFormChange('type', f); setShowFormatPicker(false); }} style={styles.modalItem}>
-                                            <Text style={styles.modalItemText}>{f}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                                <Button title="Close" variant="outline" onPress={() => setShowFormatPicker(false)} style={{ marginTop: 10 }} />
-                            </View>
-                        </View>
-                    </Modal>
+
 
                     <Modal visible={showTournamentFormatPicker} transparent animationType="slide" onRequestClose={() => setShowTournamentFormatPicker(false)}>
                         <View style={styles.modalOverlay}>
@@ -789,10 +958,10 @@ export default function OrganizerDashboard({ navigation }) {
                                         paddingLeft: 10,
                                         border: 'none',
                                         backgroundColor: 'transparent',
-                                        color: '#ffffff',
+                                        color: '#000000',
                                         fontSize: '16px',
                                         outline: 'none',
-                                        colorScheme: 'dark'
+                                        colorScheme: 'light'
                                     }
                                 })}
                             </View>
@@ -800,7 +969,7 @@ export default function OrganizerDashboard({ navigation }) {
                             <>
                                 <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.nativeInput}>
                                     <LucideCalendar size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
-                                    <Text style={{ color: newTournament.date ? '#fff' : theme.colors.textSecondary, fontSize: 16 }}>
+                                    <Text style={{ color: newTournament.date ? '#000' : theme.colors.textSecondary, fontSize: 16 }}>
                                         {newTournament.date || 'Select Date'}
                                     </Text>
                                 </TouchableOpacity>
@@ -841,10 +1010,10 @@ export default function OrganizerDashboard({ navigation }) {
                                         paddingLeft: 10,
                                         border: 'none',
                                         backgroundColor: 'transparent',
-                                        color: '#ffffff',
+                                        color: '#000000',
                                         fontSize: '16px',
                                         outline: 'none',
-                                        colorScheme: 'dark'
+                                        colorScheme: 'light'
                                     }
                                 })}
                             </View>
@@ -852,7 +1021,7 @@ export default function OrganizerDashboard({ navigation }) {
                             <>
                                 <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.nativeInput}>
                                     <LucideClock size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
-                                    <Text style={{ color: newTournament.time ? '#fff' : theme.colors.textSecondary, fontSize: 16 }}>
+                                    <Text style={{ color: newTournament.time ? '#000' : theme.colors.textSecondary, fontSize: 16 }}>
                                         {newTournament.time || 'Select Time'}
                                     </Text>
                                 </TouchableOpacity>
@@ -875,6 +1044,107 @@ export default function OrganizerDashboard({ navigation }) {
                         )}
                         {formErrors.time && <Text style={styles.errorText}>{formErrors.time}</Text>}
                     </View>
+
+                    {/* End Time Picker */}
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={styles.label}>End Time (Optional)</Text>
+                        {Platform.OS === 'web' ? (
+                            <View style={styles.pickerWrapper}>
+                                <LucideClock size={20} color={theme.colors.textSecondary} style={{ marginLeft: 16 }} />
+                                {React.createElement('input', {
+                                    type: 'time',
+                                    value: newTournament.endTime,
+                                    onChange: (e) => handleFormChange('endTime', e.target.value),
+                                    style: {
+                                        flex: 1,
+                                        height: '100%',
+                                        paddingLeft: 10,
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        color: '#000000',
+                                        fontSize: '16px',
+                                        outline: 'none',
+                                        colorScheme: 'light'
+                                    }
+                                })}
+                            </View>
+                        ) : (
+                            <>
+                                <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.nativeInput}>
+                                    <LucideClock size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
+                                    <Text style={{ color: newTournament.endTime ? '#000' : theme.colors.textSecondary, fontSize: 16 }}>
+                                        {newTournament.endTime || 'Select End Time'}
+                                    </Text>
+                                </TouchableOpacity>
+                                {showEndTimePicker && (
+                                    <DateTimePicker
+                                        value={newTournament.endTime ? new Date(`2000-01-01T${newTournament.endTime}`) : new Date()}
+                                        mode="time"
+                                        display="default"
+                                        is24Hour={true}
+                                        onChange={(e, d) => {
+                                            setShowEndTimePicker(false);
+                                            if (d) {
+                                                const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }).slice(0, 5);
+                                                handleFormChange('endTime', timeStr);
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </>
+                        )}
+                    </View>
+
+                    {/* Registration Deadline Picker */}
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={styles.label}>Registration Deadline</Text>
+                        {Platform.OS === 'web' ? (
+                            <View style={styles.pickerWrapper}>
+                                <LucideCalendar size={20} color={theme.colors.textSecondary} style={{ marginLeft: 16 }} />
+                                {React.createElement('input', {
+                                    type: 'date',
+                                    value: newTournament.registrationDeadline,
+                                    onChange: (e) => handleFormChange('registrationDeadline', e.target.value),
+                                    style: {
+                                        flex: 1,
+                                        height: '100%',
+                                        paddingLeft: 10,
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        color: '#000000',
+                                        fontSize: '16px',
+                                        outline: 'none',
+                                        colorScheme: 'light'
+                                    }
+                                })}
+                            </View>
+                        ) : (
+                            <>
+                                <TouchableOpacity onPress={() => setShowRegistrationPicker(true)} style={styles.nativeInput}>
+                                    <LucideCalendar size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
+                                    <Text style={{ color: newTournament.registrationDeadline ? '#000' : theme.colors.textSecondary, fontSize: 16 }}>
+                                        {newTournament.registrationDeadline || 'Select Deadline'}
+                                    </Text>
+                                </TouchableOpacity>
+                                {showRegistrationPicker && (
+                                    <DateTimePicker
+                                        value={newTournament.registrationDeadline ? new Date(newTournament.registrationDeadline) : new Date()}
+                                        mode="date"
+                                        display="default"
+                                        onChange={(e, d) => {
+                                            setShowRegistrationPicker(false);
+                                            if (d) {
+                                                const year = d.getFullYear();
+                                                const month = String(d.getMonth() + 1).padStart(2, '0');
+                                                const day = String(d.getDate()).padStart(2, '0');
+                                                handleFormChange('registrationDeadline', `${year}-${month}-${day}`);
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </>
+                        )}
+                    </View>
                     <Input
                         label="Entry Fee (₹)"
                         placeholder="500"
@@ -882,6 +1152,7 @@ export default function OrganizerDashboard({ navigation }) {
                         value={String(newTournament.entryFee || '')}
                         onChangeText={t => handleFormChange('entryFee', t)}
                         error={formErrors.entryFee}
+                        variant="light"
                     />
 
 
@@ -946,6 +1217,7 @@ export default function OrganizerDashboard({ navigation }) {
                             onChangeText={setBroadcastMessage}
                             multiline
                             style={{ height: 80, textAlignVertical: 'top' }}
+                            variant="light"
                         />
                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
                             <Button title="Cancel" variant="outline" onPress={() => setShowBroadcast(false)} style={{ flex: 1 }} />
@@ -968,11 +1240,17 @@ export default function OrganizerDashboard({ navigation }) {
                 </View>
             </Modal>
 
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        paddingTop: Platform.OS === 'android' ? 40 : 20,
+        paddingHorizontal: 20,
+    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -980,43 +1258,52 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     title: {
-        ...theme.typography.subheader,
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#000000',
     },
     sectionTitle: {
         fontSize: 18,
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 10,
         fontWeight: '600',
     },
     card: {
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.m,
-        marginBottom: theme.spacing.s,
-        overflow: 'hidden', // For banner image
+        backgroundColor: '#FAFAFA',
+        borderRadius: 12,
+        marginBottom: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 3,
     },
     cardBanner: {
         width: '100%',
         height: 140,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#EEEEEE',
     },
     cardContent: {
-        padding: theme.spacing.m,
+        padding: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
     cardTitle: {
-        color: '#fff',
+        color: '#000000',
         fontSize: 16,
         fontWeight: 'bold',
     },
     cardSubtitle: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 14,
         marginTop: 4,
     },
     badge: {
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#EEEEEE',
         padding: 6,
         borderRadius: 4,
     },
@@ -1025,7 +1312,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     emptyText: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         textAlign: 'center',
         marginTop: 20,
     },
@@ -1037,18 +1324,18 @@ const styles = StyleSheet.create({
     detailBanner: {
         width: '100%',
         height: 200,
-        borderRadius: theme.borderRadius.m,
+        borderRadius: 12,
         marginBottom: 16,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#EEEEEE',
     },
     detailTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: theme.colors.primary,
+        color: '#000000',
     },
     detailSub: {
         fontSize: 16,
-        color: theme.colors.textSecondary,
+        color: '#666666',
         marginBottom: 20,
     },
     statusBadge: {
@@ -1056,31 +1343,35 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     actionButtons: {
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#FAFAFA',
         padding: 16,
-        borderRadius: theme.borderRadius.m,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
     },
     label: {
-        color: theme.colors.text,
+        color: '#000000',
         fontSize: 14,
         fontWeight: '500',
     },
     matchCard: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: '#F5F5F5',
         borderRadius: 12,
         padding: 16,
         marginBottom: 12,
         borderLeftWidth: 4,
         borderLeftColor: theme.colors.primary,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
     },
     matchHeader: {
         marginBottom: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
+        borderBottomColor: '#E0E0E0',
         paddingBottom: 8,
     },
     matchRound: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 12,
         fontWeight: 'bold',
         textTransform: 'uppercase',
@@ -1095,7 +1386,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     matchPlayerName: {
-        color: '#fff',
+        color: '#000000',
         fontSize: 14,
         fontWeight: 'bold',
         textAlign: 'center',
@@ -1110,7 +1401,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     vsText: {
-        color: theme.colors.textSecondary,
+        color: '#999999',
         fontSize: 12,
         fontWeight: 'bold',
     },
@@ -1132,7 +1423,7 @@ const styles = StyleSheet.create({
         marginTop: 16,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.1)',
+        borderTopColor: '#E0E0E0',
     },
     matchWinner: {
         color: theme.colors.success,
@@ -1153,7 +1444,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     playerName: {
-        color: '#fff',
+        color: '#000000',
         fontSize: 16,
         fontWeight: 'bold',
     },
@@ -1162,10 +1453,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: '#EEEEEE',
     },
     playerDetail: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 12,
         marginTop: 2,
     },
@@ -1185,25 +1476,10 @@ const styles = StyleSheet.create({
     },
     playerList: {
         marginTop: 10,
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.m,
+        backgroundColor: '#FAFAFA',
+        borderRadius: 12,
         padding: 10,
         maxHeight: 300,
-    },
-    playerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
-    },
-    playerName: {
-        color: '#fff',
-        fontSize: 16,
-    },
-    playerDetail: {
-        color: theme.colors.textSecondary,
-        fontSize: 12,
     },
     paymentStatus: {
         color: theme.colors.success,
@@ -1212,13 +1488,15 @@ const styles = StyleSheet.create({
     },
     profileBtn: {
         padding: 4,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#FAFAFA',
         borderRadius: 20,
         width: 40,
         height: 40,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: theme.colors.primary,
     },
     headerProfileImg: {
         width: '100%',
@@ -1229,15 +1507,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 20,
         marginBottom: 30,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         padding: 20,
         borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
     },
     largeAvatar: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#EEEEEE',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
@@ -1252,33 +1532,37 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     detailSubText: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 12,
     },
     infoSection: {
         marginBottom: 20,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         padding: 16,
         borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
     },
     infoLabel: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 12,
         marginBottom: 4,
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
     infoValue: {
-        color: '#fff',
+        color: '#000000',
         fontSize: 16,
         fontWeight: '500',
     },
     documentSection: {
         marginTop: 10,
         marginBottom: 30,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         padding: 16,
         borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
     },
     documentImage: {
         width: '100%',
@@ -1290,10 +1574,10 @@ const styles = StyleSheet.create({
     typeChip: {
         flex: 1,
         padding: 12,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
         alignItems: 'center',
     },
     activeTypeChip: {
@@ -1301,7 +1585,7 @@ const styles = StyleSheet.create({
         borderColor: theme.colors.primary,
     },
     typeText: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontWeight: '600',
         fontSize: 12,
     },
@@ -1310,13 +1594,13 @@ const styles = StyleSheet.create({
     },
     bannerUpload: {
         height: 150,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#FAFAFA',
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#CCCCCC',
         borderStyle: 'dashed',
     },
     bannerPreview: {
@@ -1325,17 +1609,17 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     uploadText: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         marginTop: 8,
         fontSize: 14,
     },
     helperChip: {
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#FAFAFA',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
     },
     helperText: {
         color: theme.colors.primary,
@@ -1344,9 +1628,9 @@ const styles = StyleSheet.create({
     },
     pickerWrapper: {
         borderWidth: 1.5,
-        borderColor: theme.colors.border,
+        borderColor: '#CCCCCC',
         borderRadius: theme.borderRadius.m,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         overflow: 'hidden',
         height: 56,
         flexDirection: 'row',
@@ -1361,9 +1645,9 @@ const styles = StyleSheet.create({
     },
     nativeInput: {
         borderWidth: 1.5,
-        borderColor: theme.colors.border,
+        borderColor: '#CCCCCC',
         borderRadius: theme.borderRadius.m,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         height: 56,
         paddingHorizontal: 16,
         flexDirection: 'row',
@@ -1372,12 +1656,14 @@ const styles = StyleSheet.create({
     dropdownBtn: {
         flexDirection: 'row',
         borderWidth: 1.5,
-        borderColor: theme.colors.border,
+        borderColor: '#CCCCCC',
         borderRadius: theme.borderRadius.m,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         paddingHorizontal: 16,
         paddingVertical: 14,
         minHeight: 56,
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
     modalOverlay: {
         flex: 1,
@@ -1385,7 +1671,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: 24,
@@ -1394,18 +1680,24 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 16,
         textAlign: 'center',
     },
     modalItem: {
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
+        borderBottomColor: '#EEEEEE',
     },
     modalItemText: {
         fontSize: 16,
-        color: theme.colors.text,
+        color: '#000000',
         textAlign: 'center',
     },
+    errorText: {
+        color: theme.colors.error,
+        fontSize: 12,
+        marginLeft: 4,
+        marginTop: 4,
+    }
 });

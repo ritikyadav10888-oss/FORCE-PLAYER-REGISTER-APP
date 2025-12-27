@@ -1,17 +1,17 @@
 import { LucideArrowLeft, LucideCalendar, LucideClock, LucideIndianRupee, LucideMapPin, LucideTrophy, LucideUsers } from 'lucide-react-native';
 import React from 'react';
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Removed Share from here
+import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Removed Share from here
 
 import Button from '../../components/Button';
-import Container from '../../components/Container';
 import { API_URL, RAZORPAY_KEY_ID } from '../../config';
 import { useAuth } from '../../context/AuthContext';
 import { useTournaments } from '../../context/TournamentContext';
 import { theme } from '../../styles/theme';
+import { openRazorpayCheckout } from '../../utils/razorpayPayment';
 
 export default function TournamentDetailsScreen({ route, navigation }) {
     const { tournament } = route.params;
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { joinTournament, leaveTournament, loadTournaments } = useTournaments();
 
     // We need fresh state to reflect join/leave changes immediately
@@ -19,17 +19,160 @@ export default function TournamentDetailsScreen({ route, navigation }) {
     const isJoined = tournament.players.some(p => (p.user?._id || p.user) === user.id);
     const canJoin = tournament.status === 'PENDING' && !isJoined;
 
+    // --- Dynamic Sport Profiles ---
+    const [showProfileModal, setShowProfileModal] = React.useState(false);
+    const [sportDetails, setSportDetails] = React.useState({});
+    const [profileLoaded, setProfileLoaded] = React.useState(false);
+
+    // Config for supported sports
+    const SPORT_CONFIGS = {
+        'Archery': [
+            { key: 'bowType', label: 'Bow Type', type: 'select', options: ['Recurve', 'Compound', 'Barebow'] },
+            { key: 'drawWeight', label: 'Draw Weight (lbs)', type: 'select', options: ['< 30', '30-40', '40-50', '> 50'] }
+        ],
+        'Athletics': [
+            { key: 'mainEvent', label: 'Main Event', type: 'select', options: ['Sprints (100m-400m)', 'Middle Distance (800m-1500m)', 'Long Distance', 'Jumps', 'Throws'] }
+        ],
+        'Badminton': [
+            { key: 'hand', label: 'Playing Hand', type: 'select', options: ['Right', 'Left'] },
+            { key: 'category', label: 'Preferred Category', type: 'select', options: ['Singles', 'Doubles', 'Mixed Doubles'] }
+        ],
+        'Basketball': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'] }
+        ],
+        'Billiards & Snooker': [
+            { key: 'cueHand', label: 'Cue Hand', type: 'select', options: ['Right', 'Left'] },
+            { key: 'highestBreak', label: 'Highest Break Range', type: 'select', options: ['< 30', '30-50', '50-100', '100+'] }
+        ],
+        'Boxing': [
+            { key: 'weightClass', label: 'Weight Class', type: 'select', options: ['Flyweight', 'Featherweight', 'Lightweight', 'Welterweight', 'Middleweight', 'Heavyweight'] },
+            { key: 'stance', label: 'Stance', type: 'select', options: ['Orthodox', 'Southpaw'] }
+        ],
+        'Carrom': [
+            { key: 'style', label: 'Style', type: 'select', options: ['Defensive', 'Attacking'] }
+        ],
+        'Chess': [
+            { key: 'rating', label: 'FIDE/Online Rating', type: 'select', options: ['Beginner (<1000)', 'Intermediate (1000-1600)', 'Advanced (1600-2200)', 'Master (2200+)'] }
+        ],
+        'Cricket': [
+            { key: 'role', label: 'Role', type: 'select', options: ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'] },
+            { key: 'batStyle', label: 'Batting Style', type: 'select', options: ['Right Hand', 'Left Hand'] },
+            { key: 'bowlStyle', label: 'Bowling Style', type: 'select', options: ['None', 'Right Arm Fast', 'Right Arm Medium', 'Right Arm Spin', 'Left Arm Fast', 'Left Arm Medium', 'Left Arm Spin'] }
+        ],
+        'Cycling': [
+            { key: 'type', label: 'Discipline', type: 'select', options: ['Road', 'Track', 'Mountain Bike', 'BMX'] }
+        ],
+        'Football': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Striker', 'Midfielder', 'Defender', 'Goalkeeper'] },
+            { key: 'foot', label: 'Preferred Foot', type: 'select', options: ['Right', 'Left', 'Both'] }
+        ],
+        'Golf': [
+            { key: 'handicap', label: 'Handicap', type: 'select', options: ['0-10', '11-20', '21-30', '30+'] }
+        ],
+        'Gymnastics': [
+            { key: 'apparatus', label: 'Main Apparatus', type: 'select', options: ['Floor', 'Vault', 'Bars', 'Beam', 'Rings', 'Pommel Horse'] }
+        ],
+        'Handball': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Goalkeeper', 'Winger', 'Pivot', 'Back'] }
+        ],
+        'Hockey': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Forward', 'Midfielder', 'Defender', 'Goalkeeper'] }
+        ],
+        'Judo': [
+            { key: 'belt', label: 'Belt Rank', type: 'select', options: ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Brown', 'Black'] },
+            { key: 'weightClass', label: 'Weight Category', type: 'select', options: ['-60kg', '-73kg', '-90kg', '+90kg'] }
+        ],
+        'Kabaddi': [
+            { key: 'role', label: 'Position', type: 'select', options: ['Raider', 'Defender - Corner', 'Defender - Cover', 'All Rounder'] }
+        ],
+        'Karate': [
+            { key: 'style', label: 'Style', type: 'select', options: ['Shotokan', 'Goju-Ryu', 'Wado-Ryu', 'Shito-Ryu', 'Kyokushin'] },
+            { key: 'belt', label: 'Belt', type: 'select', options: ['White', 'Colored', 'Black'] }
+        ],
+        'Kho Kho': [
+            { key: 'role', label: 'Role', type: 'select', options: ['Chaser', 'Runner', 'All Rounder'] }
+        ],
+        'Rugby': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Forward', 'Back'] }
+        ],
+        'Shooting': [
+            { key: 'gunType', label: 'Category', type: 'select', options: ['Pistol', 'Rifle', 'Shotgun'] },
+            { key: 'distance', label: 'Distance', type: 'select', options: ['10m', '25m', '50m'] }
+        ],
+        'Squash': [
+            { key: 'hand', label: 'Playing Hand', type: 'select', options: ['Right', 'Left'] }
+        ],
+        'Swimming': [
+            { key: 'stroke', label: 'Main Stroke', type: 'select', options: ['Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'] }
+        ],
+        'Table Tennis': [
+            { key: 'grip', label: 'Grip Style', type: 'select', options: ['Shakehand', 'Penhold'] },
+            { key: 'style', label: 'Play Style', type: 'select', options: ['Attacker', 'Defender', 'All Rounder'] }
+        ],
+        'Taekwondo': [
+            { key: 'belt', label: 'Belt Rank', type: 'select', options: ['White', 'Color', 'Black'] },
+            { key: 'weight', label: 'Weight Class', type: 'select', options: ['Fly', 'Feather', 'Welter', 'Heavy'] }
+        ],
+        'Tennis': [
+            { key: 'hand', label: 'Playing Hand', type: 'select', options: ['Right', 'Left'] },
+            { key: 'backhand', label: 'Backhand', type: 'select', options: ['One-handed', 'Two-handed'] }
+        ],
+        'Throwball': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Service', 'Net', 'Back'] }
+        ],
+        'Volleyball': [
+            { key: 'position', label: 'Position', type: 'select', options: ['Setter', 'Outside Hitter', 'Opposite', 'Middle Blocker', 'Libero'] }
+        ],
+        'Wrestling': [
+            { key: 'style', label: 'Style', type: 'select', options: ['Freestyle', 'Greco-Roman'] },
+            { key: 'weight', label: 'Weight Class', type: 'select', options: ['Light', 'Middle', 'Heavy'] }
+        ]
+    };
+
+    const currentSportConfig = SPORT_CONFIGS[tournament.gameType];
+
+    React.useEffect(() => {
+        // Fetch latest user profile to get saved sport details
+        const fetchUserProfile = async () => {
+            if (user && currentSportConfig && !profileLoaded) {
+                try {
+                    // Assuming we can get full user details including sportProfiles
+                    // Since useAuth might only have basic info, let's fetch fresh
+                    const res = await fetch(`${API_URL}/users/${user.id}`); // Need a route for this or rely on auth context if updated
+                    // Fallback: if auth context doesn't have it, we might need to rely on local state or fetch
+                    // For now, let's check if user object has sportProfiles (it might not if not refreshed)
+
+                    // Optimization: Just check if user object has it. 
+                    if (user.sportProfiles && user.sportProfiles[tournament.gameType]) {
+                        setSportDetails(user.sportProfiles[tournament.gameType]);
+                    }
+                } catch (e) { console.log("Profile fetch err", e); }
+                setProfileLoaded(true);
+            }
+        };
+        fetchUserProfile();
+    }, [user, tournament.gameType]);
+
+    const initiateJoinFlow = () => {
+        if (currentSportConfig) {
+            setShowProfileModal(true);
+        } else {
+            handlePayAndJoin();
+        }
+    };
+
     const SERVER_URL = API_URL.replace('/api', '');
 
-    const loadRazorpay = () => {
-        return new Promise((resolve) => {
-            const script = document.createElement('script');
-            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
-            document.body.appendChild(script);
-        });
-    };
+    React.useEffect(() => {
+        if (route.params?.paymentSuccess) {
+            loadTournaments();
+            Alert.alert("Success", "Payment Successful! You have joined the tournament.");
+            navigation.setParams({ paymentSuccess: null });
+            navigation.goBack();
+        }
+    }, [route.params?.paymentSuccess]);
+
+
 
 
 
@@ -84,33 +227,35 @@ export default function TournamentDetailsScreen({ route, navigation }) {
                 theme: { color: theme.colors.primary }
             };
 
-            // 2. Open Checkout (Platform Specific)
-            if (Platform.OS === 'web') {
-                const res = await loadRazorpay();
-                if (!res) {
-                    Alert.alert("Error", "Razorpay SDK failed to load. Are you online?");
-                    return;
-                }
+            // 2. Open Checkout (Cross-Platform)
+            const result = await openRazorpayCheckout(options, verifyPayment, null);
 
-                options.handler = async function (response) {
-                    await verifyPayment(response);
-                };
-
-                const rzp1 = new window.Razorpay(options);
-                rzp1.on('payment.failed', function (response) {
-                    Alert.alert("Payment Failed", response.error.description);
-                });
-                rzp1.open();
-
-            } else {
-                // Native (Android/iOS)
-                const RazorpayCheckout = require('react-native-razorpay').default;
-                RazorpayCheckout.open(options).then((data) => {
-                    // handle success
-                    verifyPayment(data);
-                }).catch((error) => {
-                    // handle failure
-                    Alert.alert('Error', `Error: ${error.code} | ${error.description}`);
+            if (result?.fallbackToWebView) {
+                console.log("Navigating to PaymentScreen form Details...");
+                const html = `
+                    <!DOCTYPE html>
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <body>
+                        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+                        <script>
+                            var options = ${JSON.stringify(options)};
+                            options.handler = function(response){
+                                window.ReactNativeWebView.postMessage(JSON.stringify({status: 'success', data: response}));
+                            };
+                            options.modal = {
+                                ondismiss: function(){
+                                    window.ReactNativeWebView.postMessage(JSON.stringify({status: 'dismiss'}));
+                                }
+                            };
+                            var rzp = new Razorpay(options);
+                            rzp.open();
+                        </script>
+                    </body>
+                `;
+                navigation.navigate('PaymentScreen', {
+                    html,
+                    tournamentId: tournament.id,
+                    userId: user.id
                 });
             }
 
@@ -118,6 +263,21 @@ export default function TournamentDetailsScreen({ route, navigation }) {
             console.error(e);
             Alert.alert("Error", e.message || "Payment initiation failed");
         }
+    };
+
+    const handleProfileSubmit = () => {
+        // Validate required fields
+        const isValid = currentSportConfig.every(field => sportDetails[field.key]);
+        if (!isValid) {
+            Alert.alert("Missing Details", "Please fill all player details to proceed.");
+            return;
+        }
+        setShowProfileModal(false);
+        handlePayAndJoin();
+    };
+
+    const updateDetail = (key, value) => {
+        setSportDetails(prev => ({ ...prev, [key]: value }));
     };
 
     const verifyPayment = async (response) => {
@@ -136,7 +296,8 @@ export default function TournamentDetailsScreen({ route, navigation }) {
                         email: user.email,
                         mobile: user.mobile,
                         game: user.game,
-                        strength: user.strength
+                        strength: user.strength,
+                        gameDetails: sportDetails // Include the captured sport details
                     }
                 })
             });
@@ -145,6 +306,7 @@ export default function TournamentDetailsScreen({ route, navigation }) {
             if (verifyRes.ok) {
                 Alert.alert("Success", "Payment Successful! You have joined the tournament.");
                 await loadTournaments();
+                if (refreshUser) await refreshUser();
                 navigation.goBack();
             } else {
                 Alert.alert("Verification Failed", result.error);
@@ -183,7 +345,7 @@ export default function TournamentDetailsScreen({ route, navigation }) {
     };
 
     return (
-        <Container>
+        <View style={styles.container}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
                 {/* Header Image */}
                 <View style={styles.imageContainer}>
@@ -292,21 +454,62 @@ export default function TournamentDetailsScreen({ route, navigation }) {
                         <Button
                             title={isJoined ? "ENROLLED" : (tournament.status === 'PENDING' ? (tournament.entryFee > 0 ? `PAY ₹${tournament.entryFee} & JOIN` : "JOIN NOW") : "REGISTRATION CLOSED")}
                             variant={isJoined ? "outline" : (tournament.status === 'PENDING' ? "primary" : "ghost")}
-                            disabled={!canJoin && !isJoined} /* Disabled only if closed */
-                            onPress={!isJoined && canJoin ? handlePayAndJoin : null}
+                            onPress={!isJoined && canJoin ? initiateJoinFlow : null}
                             style={{ minWidth: 160, borderColor: isJoined ? theme.colors.success : undefined }}
                             textStyle={{ color: isJoined ? theme.colors.success : undefined }}
                         />
                     </View>
-
                 </View>
-
             </ScrollView>
-        </Container>
+
+            {/* Profile Detail Modal */}
+            <Modal visible={showProfileModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Player Profile: {tournament.gameType}</Text>
+                        <Text style={styles.modalSub}>Complete your profile for this sport.</Text>
+
+                        <ScrollView style={{ maxHeight: 400 }}>
+                            {currentSportConfig?.map((field) => (
+                                <View key={field.key} style={{ marginBottom: 16 }}>
+                                    <Text style={styles.inputLabel}>{field.label}</Text>
+                                    <View style={styles.optionsContainer}>
+                                        {field.options.map(opt => (
+                                            <TouchableOpacity
+                                                key={opt}
+                                                style={[
+                                                    styles.optionChip,
+                                                    sportDetails[field.key] === opt && styles.optionChipSelected
+                                                ]}
+                                                onPress={() => updateDetail(field.key, opt)}
+                                            >
+                                                <Text style={[
+                                                    styles.optionText,
+                                                    sportDetails[field.key] === opt && styles.optionTextSelected
+                                                ]}>{opt}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
+
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                            <Button title="Cancel" variant="outline" onPress={() => setShowProfileModal(false)} style={{ flex: 1 }} />
+                            <Button title="Continue to Payment" onPress={handleProfileSubmit} style={{ flex: 1 }} />
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
     imageContainer: {
         height: 280,
         width: '100%',
@@ -317,7 +520,7 @@ const styles = StyleSheet.create({
         height: '100%',
     },
     placeholderBanner: {
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#EEEEEE',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -355,9 +558,9 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     title: {
-        ...theme.typography.h1,
-        color: '#fff',
         fontSize: 28,
+        fontWeight: 'bold',
+        color: '#fff',
         marginBottom: 4,
     },
     subtitle: {
@@ -372,14 +575,19 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         borderRadius: 12,
         marginBottom: 24,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     statusLabel: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontWeight: 'bold',
         fontSize: 12,
     },
@@ -397,24 +605,24 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     label: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 12,
         marginBottom: 2,
     },
     infoText: {
-        color: theme.colors.text,
+        color: '#000000',
         fontSize: 16,
         fontWeight: '500',
     },
     divider: {
         height: 1,
-        backgroundColor: theme.colors.border,
+        backgroundColor: '#EEEEEE',
         marginVertical: 24,
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 16,
     },
     organizerRow: {
@@ -426,7 +634,7 @@ const styles = StyleSheet.create({
         width: 50,
         height: 50,
         borderRadius: 25,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#F0F0F0',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -438,11 +646,11 @@ const styles = StyleSheet.create({
     orgName: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: theme.colors.text,
+        color: '#000000',
     },
     orgContact: {
         fontSize: 14,
-        color: theme.colors.textSecondary,
+        color: '#666666',
     },
     footer: {
         flexDirection: 'row',
@@ -452,12 +660,66 @@ const styles = StyleSheet.create({
     },
     priceLabel: {
         fontSize: 12,
-        color: theme.colors.textSecondary,
+        color: '#666666',
     },
     price: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: theme.colors.text,
+        color: '#000000',
         marginLeft: 4,
     },
+
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        padding: 20
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 24,
+        maxHeight: '80%'
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 8
+    },
+    modalSub: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 20
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 8,
+        color: '#333'
+    },
+    optionsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8
+    },
+    optionChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        backgroundColor: '#f9f9f9'
+    },
+    optionChipSelected: {
+        backgroundColor: theme.colors.primary,
+        borderColor: theme.colors.primary
+    },
+    optionText: {
+        fontSize: 12,
+        color: '#333'
+    },
+    optionTextSelected: {
+        color: '#fff',
+        fontWeight: 'bold'
+    }
 });

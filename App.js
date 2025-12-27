@@ -22,11 +22,14 @@ import SimpleLoginScreen from './src/screens/Auth/SimpleLoginScreen';
 import OrganizerDashboard from './src/screens/Organizer/OrganizerDashboard';
 import OrganizerProfile from './src/screens/Organizer/OrganizerProfile'; // Import OrganizerProfile
 import OwnerDashboard from './src/screens/Owner/OwnerDashboard';
+import PaymentScreenComponent from './src/screens/Player/PaymentScreen';
 import PlayerDashboard from './src/screens/Player/PlayerDashboard';
 import PlayerProfile from './src/screens/Player/PlayerProfile'; // Import PlayerProfile
 import TournamentDetailsScreen from './src/screens/Player/TournamentDetailsScreen';
+import SplashScreen from './src/screens/SplashScreen';
 
 function MainApp() {
+    const [isSplashVisible, setSplashVisible] = useState(false);
     const { user } = useAuth();
     const [currentScreen, setCurrentScreen] = useState('Login'); // Login, Register, ForgotPassword, PlayerProfile, OrganizerProfile
 
@@ -103,6 +106,10 @@ function MainApp() {
         }
     };
 
+    if (isSplashVisible) {
+        return <SplashScreen onFinish={() => setSplashVisible(false)} />;
+    }
+
     // If user is logged in, show appropriate dashboard or profile
     if (user) {
         // Shared Routes
@@ -114,6 +121,10 @@ function MainApp() {
         }
         if (currentScreen === 'TournamentDetails') {
             return <TournamentDetailsScreen navigation={navigation} route={{ params: screenParams }} />;
+        }
+        if (currentScreen === 'PaymentScreen') {
+            if (!PaymentScreenComponent) return <Text>Error: Payment Component Missing</Text>;
+            return <PaymentScreenComponent navigation={navigation} route={{ params: screenParams }} />;
         }
 
         if (user.role === 'PLAYER') {

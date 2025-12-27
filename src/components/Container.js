@@ -6,29 +6,35 @@ import { theme } from '../styles/theme';
 
 const { width, height } = Dimensions.get('window');
 
-export default function Container({ children, style, useSafeArea = true }) {
+export default function Container({ children, style, useSafeArea = true, variant = 'dark' }) {
     // On web, use regular View instead of SafeAreaView by default, or handle differently
     const Wrapper = (Platform.OS === 'web' || !useSafeArea) ? View : SafeAreaView;
 
+    const isLight = variant === 'light';
+
     return (
-        <Wrapper style={styles.safeArea}>
-            {/* Premium Background Gradient */}
-            <LinearGradient
-                colors={['#04060D', '#0B1021', '#161B33']}
-                style={styles.background}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            />
+        <Wrapper style={[styles.safeArea, isLight && { backgroundColor: theme.colors.appBackground }]}>
+            {/* Premium Background Gradient - Only for Dark Mode */}
+            {!isLight && (
+                <>
+                    <LinearGradient
+                        colors={['#04060D', '#0B1021', '#161B33']}
+                        style={styles.background}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    />
 
-            {/* Sports "Speed Lines" Texture */}
-            <View style={styles.textureContainer} pointerEvents="none">
-                <View style={[styles.speedLine, { top: '10%', left: -50, width: width + 100 }]} />
-                <View style={[styles.speedLine, { top: '25%', left: -50, width: width + 100, opacity: 0.03 }]} />
-                <View style={[styles.speedLine, { top: '60%', left: -50, width: width + 100, opacity: 0.04 }]} />
+                    {/* Sports "Speed Lines" Texture */}
+                    <View style={styles.textureContainer} pointerEvents="none">
+                        <View style={[styles.speedLine, { top: '10%', left: -50, width: width + 100 }]} />
+                        <View style={[styles.speedLine, { top: '25%', left: -50, width: width + 100, opacity: 0.03 }]} />
+                        <View style={[styles.speedLine, { top: '60%', left: -50, width: width + 100, opacity: 0.04 }]} />
 
-                {/* Abstract Hex-like shape or dynamic accent */}
-                <View style={styles.accentShape} />
-            </View>
+                        {/* Abstract Hex-like shape or dynamic accent */}
+                        <View style={styles.accentShape} />
+                    </View>
+                </>
+            )}
 
             <View style={[styles.content, style]}>
                 {children}

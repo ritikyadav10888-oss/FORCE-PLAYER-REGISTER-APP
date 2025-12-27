@@ -18,7 +18,15 @@ const Notification = require('./models/Notification');
 const { sendPasswordResetEmail, sendWelcomeEmail, testEmailConfig, sendVerificationEmail } = require('./services/emailService');
 const multer = require('multer');
 const fs = require('fs');
+const crypto = require('crypto');
+const Razorpay = require('razorpay');
 
+// Initialize Razorpay
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET
+});
+console.log('✅ Razorpay initialized with Key ID:', process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.substring(0, 15) + '...' : 'NOT FOUND');
 
 const app = express();
 
@@ -145,8 +153,8 @@ app.post('/api/auth/register', async (req, res) => {
         // Hash password with stronger salt rounds
         userData.password = await bcrypt.hash(userData.password, BCRYPT_SALT_ROUNDS);
 
-        // Auto-verify email
-        userData.emailVerified = true;
+        // Auto-verify email set to FALSE now to test verification flow
+        userData.emailVerified = false;
         userData.emailVerificationOTP = undefined;
 
         const user = new User(userData);
@@ -205,6 +213,25 @@ app.post('/api/auth/verify-email', async (req, res) => {
         res.json({ ...userObj, token });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/auth/send-verification', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (!user) return res.status(404).json({ error: "User not found" });
+        if (user.emailVerified) return res.status(400).json({ error: "Email already verified" });
+
+        // Generate OTP
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+        user.emailVerificationOTP = otp;
+        await user.save();
+
+        await sendVerificationEmail(user.email, otp, user.name);
+        res.json({ message: "Verification code sent" });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
@@ -430,6 +457,16 @@ app.get('/api/players', async (req, res) => {
 });
 
 
+
+app.get('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.put('/api/users/:id', async (req, res) => {
     try {
@@ -870,6 +907,15 @@ app.post('/api/payments/verify-and-join', async (req, res) => {
                 return res.status(404).json({ error: "Tournament not found or join failed" });
             }
 
+            // 2. Persist Game Details to User Profile for future use
+            if (playerDetails.gameDetails && tournament.gameType) {
+                const sportKey = tournament.gameType; // e.g., "Cricket"
+                const updateKey = `sportProfiles.${sportKey}`;
+                await User.findByIdAndUpdate(userId, {
+                    $set: { [updateKey]: playerDetails.gameDetails }
+                });
+            }
+
             res.json({ success: true, message: "Payment verified and joined successfully", tournament });
 
         } else {
@@ -885,5 +931,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Local: http://localhost:${PORT}`);
-    console.log(`Network: http://192.168.0.102:${PORT}`);
+    console.log(`Network: http://192.168.1.173:${PORT}`);
 });

@@ -1,19 +1,19 @@
-import { LucideActivity, LucideSearch, LucideTrophy, LucideUser, LucideZap } from 'lucide-react-native';
+import { LucideActivity, LucideAlertCircle, LucideSearch, LucideTrophy, LucideUser, LucideZap } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
 import Container from '../../components/Container';
 import JoinTournamentModal from '../../components/JoinTournamentModal';
-import PaymentModal from '../../components/PaymentModal';
 import RateOrganizerModal from '../../components/RateOrganizerModal';
+import RazorpayPaymentModal from '../../components/RazorpayPaymentModal';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
 import { useTournaments } from '../../context/TournamentContext';
 import { theme } from '../../styles/theme';
 
 export default function PlayerDashboard({ navigation, route }) {
-    const { user } = useAuth();
+    const { user, sendEmailVerification } = useAuth();
     const { tournaments, joinTournament, leaveTournament, loadTournaments, rateOrganizer } = useTournaments();
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -24,6 +24,12 @@ export default function PlayerDashboard({ navigation, route }) {
     const [pendingJoinData, setPendingJoinData] = useState(null);
     const [rateModalVisible, setRateModalVisible] = useState(false);
     const [tournamentToRate, setTournamentToRate] = useState(null);
+    const [sendingEmail, setSendingEmail] = useState(false);
+
+    useEffect(() => {
+        // Welcome Message
+        Alert.alert("Welcome", `Successfully Logged In! Welcome back, ${user.name}.`);
+    }, []);
 
     // Effect to handle join initiation from Details Screen
     useEffect(() => {
@@ -84,19 +90,18 @@ export default function PlayerDashboard({ navigation, route }) {
         setPaymentModalVisible(true);
     };
 
-    const handlePaymentSubmit = async (transactionId) => {
-        if (!pendingJoinData) return;
-        const { tournament, details } = pendingJoinData;
-
+    const handlePaymentSuccess = async (paymentData) => {
         try {
-            await joinTournament(tournament.id, user, { ...details, transactionId });
+            // Payment already verified and joined on backend
+            // Just refresh the tournaments list
+            await loadTournaments();
             setPaymentModalVisible(false);
             setPendingJoinData(null);
             setSelectedJoinTournament(null);
             Alert.alert("Success", "You have successfully joined the tournament!");
-            loadTournaments(); // Refresh list
         } catch (e) {
-            Alert.alert("Error", e.message);
+            console.error('Post-payment error:', e);
+            Alert.alert("Error", "Payment successful but failed to refresh. Please restart the app.");
         }
     };
 
@@ -168,7 +173,7 @@ export default function PlayerDashboard({ navigation, route }) {
     };
 
     return (
-        <Container style={styles.container}>
+        <Container variant="light" style={styles.container}>
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ flexGrow: 1 }}
@@ -188,6 +193,32 @@ export default function PlayerDashboard({ navigation, route }) {
                         )}
                     </TouchableOpacity>
                 </View>
+
+                {/* Verify Email Banner */}
+                {!user.isEmailVerified && (
+                    <View style={styles.verifyBanner}>
+                        <LucideAlertCircle size={20} color="#B45309" />
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.verifyTitle}>Verify your email</Text>
+                            <Text style={styles.verifySub}>Tap to send verification link to {user.email}</Text>
+                        </View>
+                        <TouchableOpacity onPress={async () => {
+                            try {
+                                setSendingEmail(true);
+                                await sendEmailVerification(user.email);
+                                Alert.alert("Sent", "Verification code has been sent to your email!");
+                            } catch (error) {
+                                Alert.alert("Error", error.message);
+                            } finally {
+                                setSendingEmail(false);
+                            }
+                        }} disabled={sendingEmail}>
+                            <Text style={[styles.verifyLink, sendingEmail && { opacity: 0.5 }]}>
+                                {sendingEmail ? "SENDING..." : "SEND"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Quick Stats Bar */}
                 <View style={styles.statsBar}>
@@ -251,13 +282,23 @@ export default function PlayerDashboard({ navigation, route }) {
                 onClose={() => setJoinModalVisible(false)}
                 onJoin={prepareJoin}
             />
-            <PaymentModal
+            <RazorpayPaymentModal
                 visible={paymentModalVisible}
-                tournamentName={pendingJoinData?.tournament?.name}
+                tournamentId={pendingJoinData?.tournament?.id}
+                userId={user.id}
+                playerDetails={{
+                    name: user.name,
+                    email: user.email,
+                    mobile: user.mobile,
+                    game: user.game,
+                    strength: user.strength,
+                    ...pendingJoinData?.details
+                }}
                 amount={pendingJoinData?.tournament?.entryFee !== undefined ? pendingJoinData.tournament.entryFee : 500}
-                payToUpi={pendingJoinData?.tournament?.organizerId?.upiId}
+                tournamentName={pendingJoinData?.tournament?.name}
                 onClose={() => setPaymentModalVisible(false)}
-                onSubmit={handlePaymentSubmit}
+                onSuccess={handlePaymentSuccess}
+                navigation={navigation}
             />
             <RateOrganizerModal
                 visible={rateModalVisible}
@@ -265,7 +306,7 @@ export default function PlayerDashboard({ navigation, route }) {
                 onClose={() => setRateModalVisible(false)}
                 onSubmit={(r, rev) => rateOrganizer(tournamentToRate.organizerId, user.id, r, rev)}
             />
-        </Container>
+        </Container >
     );
 }
 
@@ -466,5 +507,31 @@ const styles = StyleSheet.create({
         height: 140,
         borderRadius: theme.borderRadius.s,
         marginBottom: 12,
+    },
+    verifyBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFBEB',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 24,
+        gap: 12,
+        borderWidth: 1,
+        borderColor: '#FEF3C7'
+    },
+    verifyTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#B45309',
+    },
+    verifySub: {
+        fontSize: 12,
+        color: '#D97706',
+    },
+    verifyLink: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#B45309',
+        textDecorationLine: 'underline',
     }
 });

@@ -7,6 +7,8 @@ const tournamentSchema = new mongoose.Schema({
     format: { type: String, enum: ['KNOCKOUT', 'ROUND_ROBIN'], default: 'KNOCKOUT' }, // Tournament Format
     date: { type: String, required: true },
     time: { type: String, required: true },
+    endTime: { type: String }, // Tournament End Time
+    registrationDeadline: { type: String }, // Registration Deadline (Date + Time)
     entryFee: { type: Number, required: true, default: 0 },
     status: { type: String, enum: ['PENDING', 'ONGOING', 'COMPLETED'], default: 'PENDING' },
     type: { type: String, enum: ['SINGLE', 'DOUBLE', 'TEAM'], default: 'SINGLE' },
@@ -20,6 +22,7 @@ const tournamentSchema = new mongoose.Schema({
         mobile: String,
         game: String,
         strength: String,
+        gameDetails: { type: Object }, // Specific details like { role: 'Wicket Keeper', batStyle: 'Right' }
         // For Teams/Doubles
         teamName: String,
         teammates: [String], // Array of names/emails of teammates

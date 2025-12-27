@@ -9,6 +9,14 @@ const userSchema = new mongoose.Schema({
     // Player specific fields
     mobile: String,
     address: String,
+    state: String,
+    district: String,
+    pincode: String,
+    coordinates: {
+        latitude: Number,
+        longitude: Number
+    },
+    dob: String, // Date of Birth (DD/MM/YYYY or ISO)
     game: String, // e.g., Badminton
     gameType: String, // Single, Double, Team
     strength: String, // Beginner, Intermediate, Pro
@@ -22,6 +30,7 @@ const userSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
     isBlocked: { type: Boolean, default: false },
     points: { type: Number, default: 0 }, // For Leaderboard
+    sportProfiles: { type: Map, of: Object, default: {} }, // Persistent profiles for each sport (e.g., { 'Cricket': { role: 'Batsman', hand: 'Right' } })
 
     // Security fields
     loginAttempts: { type: Number, default: 0 },

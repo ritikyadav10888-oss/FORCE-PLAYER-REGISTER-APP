@@ -28,14 +28,16 @@ export default function Input({ label, value, onChangeText, placeholder, secureT
         }).start();
     };
 
+    const isLight = props.variant === 'light';
+
     const borderColor = focusAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [error ? theme.colors.error : theme.colors.border, theme.colors.primary],
+        outputRange: [error ? theme.colors.error : (isLight ? '#E0E0E0' : theme.colors.border), theme.colors.primary],
     });
 
     const backgroundColor = focusAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [theme.colors.surface, theme.colors.surfaceLight],
+        outputRange: [isLight ? '#FAFAFA' : theme.colors.surface, isLight ? '#FFFFFF' : theme.colors.surfaceLight],
     });
 
     return (
@@ -51,11 +53,12 @@ export default function Input({ label, value, onChangeText, placeholder, secureT
                     style={[
                         styles.input,
                         multiline && styles.inputMultiline,
+                        { color: isLight ? '#000000' : theme.colors.text }
                     ]}
                     value={value}
                     onChangeText={onChangeText}
                     placeholder={placeholder}
-                    placeholderTextColor={theme.colors.textSecondary + '80'}
+                    placeholderTextColor={isLight ? '#999999' : (theme.colors.textSecondary + '80')}
                     secureTextEntry={secureTextEntry}
                     keyboardType={keyboardType}
                     multiline={multiline}

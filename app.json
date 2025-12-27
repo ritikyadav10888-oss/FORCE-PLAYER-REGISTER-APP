@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "force-app",
-    "slug": "force-app",
+    "name": "Force Sports",
+    "slug": "force-sports",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/force_logo.png",
@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.forcesports.forceapp",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/force_logo.png"

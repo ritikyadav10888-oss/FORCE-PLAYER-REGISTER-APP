@@ -52,6 +52,7 @@ export default function AppNavigator() {
                                 <Stack.Screen name="PlayerProfile" component={PlayerProfile} />
                                 <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
                                 <Stack.Screen name="TournamentDetails" component={TournamentDetailsScreen} />
+                                <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
                             </>
                         )}
                         {user.role === ROLES.ORGANIZER && (

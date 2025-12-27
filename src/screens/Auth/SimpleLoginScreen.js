@@ -1,4 +1,4 @@
-import { LinearGradient } from 'expo-linear-gradient';
+
 import { LucideArrowRight, LucideLock, LucideMail } from 'lucide-react-native';
 import { useState } from 'react';
 import { Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -59,16 +59,9 @@ export default function SimpleLoginScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-            {/* Background Gradient */}
-            <LinearGradient
-                colors={['#04060D', '#0B1021', '#161B33']}
-                style={styles.background}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            />
 
-            {/* Decorative Glow Orb */}
-            <View style={styles.glowOrb} />
+
+
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -84,7 +77,7 @@ export default function SimpleLoginScreen({ navigation }) {
                         style={styles.headerSection}
                     >
                         <View style={styles.logoContainer}>
-                            <View style={styles.logoGlow} />
+
                             <Image
                                 source={require('../../../assets/force_logo.png')}
                                 style={styles.logo}
@@ -170,15 +163,9 @@ export default function SimpleLoginScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#04060D',
+        backgroundColor: theme.colors.appBackground,
     },
-    background: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-    },
+
     glowOrb: {
         position: 'absolute',
         top: -100,
@@ -186,7 +173,7 @@ const styles = StyleSheet.create({
         width: SCREEN_WIDTH * 0.8,
         height: SCREEN_WIDTH * 0.8,
         borderRadius: (SCREEN_WIDTH * 0.8) / 2,
-        backgroundColor: 'rgba(0, 245, 160, 0.15)', // Primary color low opacity
+        backgroundColor: 'rgba(16, 185, 129, 0.1)', // Primary color low opacity
         // Faking blur with opacity since simple view
         opacity: 0.6,
         transform: [{ scale: 1.5 }],
@@ -216,8 +203,8 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: 'rgba(0, 245, 160, 0.2)',
-        shadowColor: '#00F5A0',
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        shadowColor: theme.colors.primary,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.8,
         shadowRadius: 30,
@@ -230,11 +217,8 @@ const styles = StyleSheet.create({
     brandName: {
         fontSize: 36,
         fontWeight: '900',
-        color: '#FFFFFF',
+        color: theme.colors.text,
         letterSpacing: 6,
-        textShadowColor: 'rgba(0, 245, 160, 0.3)',
-        textShadowOffset: { width: 0, height: 0 },
-        textShadowRadius: 10,
     },
     tagline: {
         fontSize: 12,
@@ -244,11 +228,11 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     formCard: {
-        backgroundColor: 'rgba(28, 33, 54, 0.85)', // Glass-like background, slightly more opaque
+        backgroundColor: '#FFFFFF', // Clean white
         borderRadius: 30,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: theme.colors.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
@@ -261,7 +245,7 @@ const styles = StyleSheet.create({
     welcomeTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#FFFFFF',
+        color: theme.colors.text,
         marginBottom: 8,
     },
     welcomeSubtitle: {

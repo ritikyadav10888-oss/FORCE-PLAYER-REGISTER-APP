@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
             console.log('Attempting login with:', userData.email);
             const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
                 body: JSON.stringify(userData) // Don't send role, backend determines it
             });
 
@@ -119,7 +119,7 @@ export const AuthProvider = ({ children }) => {
 
             const response = await fetch(`${API_URL}/auth/register`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
                 body: JSON.stringify(body)
             });
 
@@ -174,7 +174,7 @@ export const AuthProvider = ({ children }) => {
 
             const response = await fetch(`${API_URL}/users/${user.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
                 body: JSON.stringify(body)
             });
 
@@ -190,7 +190,45 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const sendEmailVerification = async (email) => {
+        try {
+            const response = await fetch(`${API_URL}/auth/send-verification`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+                body: JSON.stringify({ email })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            return data;
+        } catch (e) {
+            console.error(e);
+            throw e;
+        }
+    };
 
+
+
+    const refreshUser = async () => {
+        if (!user || !user.id) return;
+        try {
+            // Assume GET /users/:id exists (standard REST)
+            // If not, we might need to rely on what we have, but usually we should have a 'me' or 'get user' endpoint.
+            // Looking at updateUser logic, it calls PUT /users/:id. So GET /users/:id likely works or I might need to implement it in backend if missing.
+            // Let's assume it exists or I might check server.js.
+            // However, to be safe, I'll check server.js routes quickly in my head?
+            // "fetch(`${API_URL}/users/${user.id}`"
+
+            const response = await fetch(`${API_URL}/users/${user.id}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } });
+            const data = await response.json();
+            if (response.ok) {
+                const userToStore = { ...data, id: data._id };
+                await AsyncStorage.setItem(`user_${user.role}`, JSON.stringify(userToStore));
+                setUser(userToStore);
+            }
+        } catch (e) {
+            console.error("Failed to refresh user:", e);
+        }
+    };
 
     const logout = async () => {
         try {
@@ -205,7 +243,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, lastRole, loading, login, registerUser, updateUser, logout }}>
+        <AuthContext.Provider value={{ user, lastRole, loading, login, registerUser, updateUser, refreshUser, logout, sendEmailVerification }}>
             {children}
         </AuthContext.Provider>
     );

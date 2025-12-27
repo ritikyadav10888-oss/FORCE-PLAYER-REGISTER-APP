@@ -15,7 +15,7 @@ const seedOwner = async () => {
             password: hashedPassword,
             role: "OWNER"
         });
-        
+
         // Check if exists first to avoid duplicate key error
         const exists = await User.findOne({ email: "anand123@gmail.com", role: "OWNER" });
         if (exists) {

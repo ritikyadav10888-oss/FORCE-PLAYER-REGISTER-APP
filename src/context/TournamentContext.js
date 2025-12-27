@@ -24,7 +24,7 @@ export const TournamentProvider = ({ children }) => {
 
     const loadTournaments = async (role = '') => {
         try {
-            const response = await fetch(`${API_URL}/tournaments?role=${role}`);
+            const response = await fetch(`${API_URL}/tournaments?role=${role}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } });
             const data = await response.json();
             // Map _id to id for frontend compatibility
             const mapped = Array.isArray(data) ? data.map(t => ({ ...t, id: t._id })) : [];
@@ -36,7 +36,7 @@ export const TournamentProvider = ({ children }) => {
 
     const loadOrganizers = async () => {
         try {
-            const response = await fetch(`${API_URL}/organizers`);
+            const response = await fetch(`${API_URL}/organizers`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } });
             const data = await response.json();
             setOrganizers(Array.isArray(data) ? data.map(o => ({ ...o, id: o._id })) : []);
         } catch (e) {
@@ -46,7 +46,7 @@ export const TournamentProvider = ({ children }) => {
 
     const loadPlayers = async () => {
         try {
-            const response = await fetch(`${API_URL}/players`);
+            const response = await fetch(`${API_URL}/players`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } });
             const data = await response.json();
             setPlayers(Array.isArray(data) ? data.map(p => ({ ...p, id: p._id })) : []);
         } catch (e) {
@@ -58,7 +58,7 @@ export const TournamentProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/tournaments`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
                 body: JSON.stringify(tournamentData)
             });
             const newTournament = await response.json();
@@ -72,7 +72,7 @@ export const TournamentProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/tournaments/${tournamentId}/join`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
                 body: JSON.stringify({
                     userId: player.id || player._id,
                     name: player.name,

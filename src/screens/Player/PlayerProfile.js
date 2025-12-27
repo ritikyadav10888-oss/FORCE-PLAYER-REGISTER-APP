@@ -1,9 +1,8 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { LucideActivity, LucideAward, LucideCamera, LucideDribbble, LucideEdit2, LucideFingerprint, LucideLayers, LucideLineChart, LucideLogOut, LucideMail, LucideMapPin, LucidePhone, LucideTrophy, LucideX } from 'lucide-react-native';
+import { LucideActivity, LucideAward, LucideCamera, LucideEdit2, LucideFingerprint, LucideLogOut, LucideMail, LucideMapPin, LucidePhone, LucideTrophy, LucideX } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Button from '../../components/Button';
-import Container from '../../components/Container';
 import Input from '../../components/Input';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
@@ -28,7 +27,7 @@ const InfoItem = ({ icon: Icon, label, value, isEditing, onChangeText, onPress, 
             {isEditing ? (
                 onPress ? (
                     <TouchableOpacity onPress={onPress}>
-                        <Text style={[styles.infoValue, { color: theme.colors.text, borderBottomWidth: 1, borderColor: theme.colors.border, paddingBottom: 4 }]}>
+                        <Text style={[styles.infoValue, { color: '#000000', borderBottomWidth: 1, borderColor: '#CCCCCC', paddingBottom: 4 }]}>
                             {value || 'Select'}
                         </Text>
                     </TouchableOpacity>
@@ -38,6 +37,7 @@ const InfoItem = ({ icon: Icon, label, value, isEditing, onChangeText, onPress, 
                         onChangeText={onChangeText}
                         placeholder={placeholder}
                         style={{ marginBottom: 0 }}
+                        variant="light"
                     />
                 )
             ) : (
@@ -98,6 +98,53 @@ export default function PlayerProfile({ navigation }) {
     };
 
     // Construct image URL if available
+    const handleGetLocation = async () => {
+        try {
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission denied', 'Allow location access to detect your address.');
+                return;
+            }
+
+            const location = await Location.getCurrentPositionAsync({});
+            const { latitude, longitude } = location.coords;
+
+            // Reverse Geocode
+            try {
+                const addressResponse = await Location.reverseGeocodeAsync({ latitude, longitude });
+                if (addressResponse.length > 0) {
+                    const addr = addressResponse[0];
+                    const parts = [
+                        addr.street,
+                        addr.district || addr.subregion,
+                        addr.city,
+                        addr.region,
+                        addr.postalCode
+                    ].filter(Boolean);
+
+                    const addressString = parts.join(', ');
+
+                    updateField('address', addressString);
+                    if (addr.region) updateField('state', addr.region);
+                    if (addr.district || addr.city) updateField('district', addr.district || addr.city);
+                    if (addr.postalCode) updateField('pincode', addr.postalCode);
+                }
+            } catch (e) {
+                console.log("Reverse geocode error", e);
+            }
+
+            // Save coordinates
+            setFormData(prev => ({
+                ...prev,
+                coordinates: { latitude, longitude }
+            }));
+            Alert.alert("Location Captured", "Your location coordinates have been saved.");
+
+        } catch (error) {
+            Alert.alert("Error", "Could not fetch location: " + error.message);
+        }
+    };
+
     const SERVER_URL = API_URL.replace('/api', '');
     const profileImgUrl = user.profileImage ? `${SERVER_URL}/${user.profileImage}` : null;
     const previewUrl = selectedImage ? selectedImage.uri : profileImgUrl;
@@ -127,7 +174,7 @@ export default function PlayerProfile({ navigation }) {
     );
 
     return (
-        <Container>
+        <View style={styles.container}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -174,16 +221,13 @@ export default function PlayerProfile({ navigation }) {
                                 label="Full Name"
                                 value={formData.name}
                                 onChangeText={(text) => updateField('name', text)}
+                                variant="light"
                             />
                         </View>
                     ) : (
                         <Text style={styles.userName}>{user.name}</Text>
                     )}
-                    {!isEditing && (
-                        <View style={styles.roleBadge}>
-                            <Text style={styles.roleText}>{user.game || 'Athlete'}</Text>
-                        </View>
-                    )}
+
                 </View>
 
                 {/* Stats / Game Info */}
@@ -198,10 +242,79 @@ export default function PlayerProfile({ navigation }) {
                             </View>
                             <View style={styles.statCard}>
                                 <LucideTrophy size={24} color="#FFD700" style={{ marginBottom: 8 }} />
-                                <Text style={styles.statValue}>0</Text>
-                                <Text style={styles.statLabel}>Won</Text>
+                                <Text style={styles.statValue}>{user.points || 0}</Text>
+                                <Text style={styles.statLabel}>Points</Text>
                             </View>
                         </View>
+                    </View>
+                )}
+
+                {/* Stored Sport Profiles Display */}
+                {!isEditing && user.sportProfiles && Object.keys(user.sportProfiles).length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Sport Profiles</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                            {Object.entries(user.sportProfiles).map(([sport, details]) => (
+                                <View key={sport} style={styles.sportProfileCard}>
+                                    <View style={styles.sportCardHeader}>
+                                        <Text style={styles.sportCardTitle}>{sport}</Text>
+                                    </View>
+                                    <View style={styles.sportCardBody}>
+                                        {(() => {
+                                            let summary = '';
+                                            const s = sport;
+                                            const d = details;
+
+                                            // Formatting Logic (Mirrors OrganizerDashboard logic)
+                                            if (s === 'Cricket' && d.role) {
+                                                summary = d.role;
+                                                if ((d.role === 'Batsman' || d.role === 'Wicket Keeper') && d.batStyle) summary += ` (${d.batStyle})`;
+                                                else if (d.role === 'Bowler' && d.bowlStyle && d.bowlStyle !== 'None') summary += ` (${d.bowlStyle})`;
+                                                else if (d.role === 'All Rounder') {
+                                                    const parts = [];
+                                                    if (d.batStyle) parts.push(d.batStyle);
+                                                    if (d.bowlStyle && d.bowlStyle !== 'None') parts.push(d.bowlStyle);
+                                                    if (parts.length > 0) summary += ` (${parts.join(' / ')})`;
+                                                }
+                                            }
+                                            else if (s === 'Football' && d.position) {
+                                                summary = d.position;
+                                                if (d.foot && d.foot !== 'Both') summary += ` (${d.foot})`;
+                                            }
+                                            else if (['Badminton', 'Tennis', 'Squash', 'Table Tennis'].includes(s)) {
+                                                const hand = d.hand || d.grip;
+                                                const style = d.style || d.category || d.backhand;
+                                                if (hand) summary = hand;
+                                                if (style) summary += ` - ${style}`;
+                                            }
+                                            else if (['Boxing', 'Judo', 'Karate', 'Taekwondo', 'Wrestling'].includes(s)) {
+                                                const weight = d.weightClass || d.weight;
+                                                const belt = d.belt || d.style || d.stance;
+                                                if (weight) summary = weight;
+                                                if (belt) summary += ` (${belt})`;
+                                            }
+
+                                            return (
+                                                <View>
+                                                    {summary ? (
+                                                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: theme.colors.primary, marginBottom: 6 }}>{summary}</Text>
+                                                    ) : null}
+                                                    {Object.entries(d).map(([key, value]) => {
+                                                        if (!value || value === 'None') return null;
+                                                        return (
+                                                            <View key={key} style={styles.sportDetailRow}>
+                                                                <Text style={styles.sportDetailLabel}>{key.replace(/([A-Z])/g, ' $1').trim()}:</Text>
+                                                                <Text style={styles.sportDetailValue}>{value}</Text>
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
+                                            );
+                                        })()}
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
                     </View>
                 )}
 
@@ -214,34 +327,15 @@ export default function PlayerProfile({ navigation }) {
                         <InfoItem icon={LucidePhone} label="Mobile" value={formData.mobile} onChangeText={t => updateField('mobile', t)} isEditing={isEditing} />
                         <View style={styles.divider} />
                         <InfoItem icon={LucideMapPin} label="Address" value={formData.address} onChangeText={t => updateField('address', t)} isEditing={isEditing} />
-
-                        <View style={styles.divider} />
                         {isEditing && (
-                            <>
-                                <InfoItem icon={LucideLayers} label="Format (Tap to Select)" value={selectedFormat} isEditing={true} onPress={() => setFormatModalVisible(true)} />
-                                <View style={styles.divider} />
-                            </>
+                            <TouchableOpacity onPress={handleGetLocation} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 8, marginBottom: 8 }}>
+                                <LucideMapPin size={16} color={theme.colors.primary} />
+                                <Text style={{ color: theme.colors.primary, fontSize: 13, marginLeft: 6, fontWeight: '600' }}>Detect My Location</Text>
+                            </TouchableOpacity>
                         )}
 
-                        <InfoItem
-                            icon={LucideDribbble}
-                            label="Primary Sport"
-                            value={formData.game}
-                            isEditing={isEditing}
-                            onPress={isEditing ? () => selectedFormat ? setSportModalVisible(true) : Alert.alert("Select Format first") : null}
-                        />
-
                         <View style={styles.divider} />
 
-                        <InfoItem
-                            icon={LucideLineChart}
-                            label="Skill Level"
-                            value={formData.strength}
-                            isEditing={isEditing}
-                            onPress={isEditing ? () => setSkillModalVisible(true) : null}
-                        />
-
-                        <View style={styles.divider} />
                         <InfoItem icon={LucideFingerprint} label="Aadhar Number" value={formData.aadharNumber} onChangeText={t => updateField('aadharNumber', t)} isEditing={isEditing} />
 
                     </View>
@@ -300,11 +394,17 @@ export default function PlayerProfile({ navigation }) {
             {renderModal(sportModalVisible, setSportModalVisible, "Select Sport", selectedFormat ? GAMES_MAPPING[selectedFormat] : [], (v) => setFormData(p => ({ ...p, game: v })))}
             {renderModal(skillModalVisible, setSkillModalVisible, "Skill Level", SKILL_LEVELS, (v) => setFormData(p => ({ ...p, strength: v })))}
 
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#FFFFFF', // White background
+        paddingTop: 50,
+        paddingHorizontal: 20,
+    },
     scrollContent: {
         paddingBottom: 40,
     },
@@ -318,12 +418,13 @@ const styles = StyleSheet.create({
         padding: 5,
     },
     backText: {
-        color: theme.colors.textSecondary,
+        color: '#333333',
         fontSize: 14,
     },
-    headerTitle: { // Add headerTitle style
-        ...theme.typography.header,
+    headerTitle: {
         fontSize: 20,
+        fontWeight: 'bold',
+        color: '#000000',
     },
     profileCard: {
         alignItems: 'center',
@@ -331,13 +432,17 @@ const styles = StyleSheet.create({
     },
     avatarContainer: {
         marginBottom: 15,
-        ...theme.shadows.colored,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     avatar: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#F5F5F5',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
@@ -364,9 +469,10 @@ const styles = StyleSheet.create({
         color: theme.colors.primary,
     },
     userName: {
-        ...theme.typography.header,
         fontSize: 24,
+        fontWeight: 'bold',
         marginBottom: 5,
+        color: '#000000',
     },
     roleBadge: {
         paddingHorizontal: 12,
@@ -388,7 +494,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 15,
         marginLeft: 4,
     },
@@ -398,29 +504,39 @@ const styles = StyleSheet.create({
     },
     statCard: {
         flex: 1,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         padding: 15,
         borderRadius: 16,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     statValue: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 4,
     },
     statLabel: {
         fontSize: 12,
-        color: theme.colors.textSecondary,
+        color: '#666666',
     },
     infoCard: {
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         borderRadius: 16,
         padding: 20,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     infoItem: {
         flexDirection: 'row',
@@ -441,33 +557,33 @@ const styles = StyleSheet.create({
     },
     infoLabel: {
         fontSize: 12,
-        color: theme.colors.textSecondary,
+        color: '#666666',
         marginBottom: 2,
     },
     infoValue: {
         fontSize: 16,
-        color: theme.colors.text,
+        color: '#000000',
         fontWeight: '500',
     },
     divider: {
         height: 1,
-        backgroundColor: theme.colors.border,
+        backgroundColor: '#EEEEEE',
         marginVertical: 10,
         marginLeft: 55, // Offset for icon
     },
     docCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         padding: 15,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
     },
     docTitle: {
         fontSize: 16,
         fontWeight: '500',
-        color: theme.colors.text,
+        color: '#000000',
     },
     docStatus: {
         color: theme.colors.primary,
@@ -480,10 +596,54 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     // Modal Styles
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, maxHeight: '80%' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, maxHeight: '80%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { ...theme.typography.h3, color: theme.colors.text },
-    modalOption: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-    modalOptionText: { ...theme.typography.body, color: theme.colors.text, fontWeight: '600' }
+    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#000000' },
+    modalOption: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#EEEEEE' },
+    modalOptionText: { fontSize: 16, color: '#333333', fontWeight: '600' },
+
+    // Sport Profile Cards
+    sportProfileCard: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
+        width: 220,
+        overflow: 'hidden',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+        marginBottom: 4,
+        marginRight: 4
+    },
+    sportCardHeader: {
+        backgroundColor: theme.colors.primary,
+        padding: 12,
+    },
+    sportCardTitle: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14
+    },
+    sportCardBody: {
+        padding: 12
+    },
+    sportDetailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 6
+    },
+    sportDetailLabel: {
+        fontSize: 12,
+        color: '#666',
+        textTransform: 'capitalize'
+    },
+    sportDetailValue: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#333'
+    }
 });

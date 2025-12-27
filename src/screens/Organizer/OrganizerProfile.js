@@ -3,7 +3,6 @@ import { LucideCamera, LucideEdit2, LucideLogOut, LucideMail, LucideMapPin, Luci
 import { useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Button from '../../components/Button';
-import Container from '../../components/Container';
 import Input from '../../components/Input';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
@@ -61,6 +60,7 @@ export default function OrganizerProfile({ navigation }) {
                         value={formData[field]}
                         onChangeText={(text) => setFormData({ ...formData, [field]: text })}
                         style={{ marginBottom: 0 }}
+                        variant="light"
                     />
                 ) : (
                     <Text style={styles.infoValue}>{value || 'N/A'}</Text>
@@ -70,7 +70,7 @@ export default function OrganizerProfile({ navigation }) {
     );
 
     return (
-        <Container>
+        <View style={styles.container}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -115,6 +115,7 @@ export default function OrganizerProfile({ navigation }) {
                                 label="Full Name"
                                 value={formData.name}
                                 onChangeText={(text) => setFormData({ ...formData, name: text })}
+                                variant="light"
                             />
                         </View>
                     ) : (
@@ -168,11 +169,17 @@ export default function OrganizerProfile({ navigation }) {
                     </View>
                 )}
             </ScrollView>
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        paddingTop: 50,
+        paddingHorizontal: 20,
+    },
     scrollContent: {
         paddingBottom: 40,
     },
@@ -186,12 +193,13 @@ const styles = StyleSheet.create({
         padding: 5,
     },
     backText: {
-        color: theme.colors.textSecondary,
+        color: '#666666',
         fontSize: 14,
     },
     headerTitle: {
-        ...theme.typography.header,
         fontSize: 20,
+        fontWeight: 'bold',
+        color: '#000000',
     },
     profileCard: {
         alignItems: 'center',
@@ -201,7 +209,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: theme.colors.surfaceHighlight,
+        backgroundColor: '#FAFAFA',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
@@ -224,9 +232,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     userName: {
-        ...theme.typography.header,
         fontSize: 24,
+        fontWeight: 'bold',
         marginBottom: 5,
+        color: '#000000',
     },
     roleBadge: {
         paddingHorizontal: 12,
@@ -248,7 +257,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 15,
         marginLeft: 4,
     },
@@ -258,29 +267,39 @@ const styles = StyleSheet.create({
     },
     statCard: {
         flex: 1,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         padding: 15,
         borderRadius: 16,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     statValue: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: theme.colors.text,
+        color: '#000000',
         marginBottom: 4,
     },
     statLabel: {
         fontSize: 12,
-        color: theme.colors.textSecondary,
+        color: '#666666',
     },
     infoCard: {
-        backgroundColor: theme.colors.surface,
+        backgroundColor: '#FAFAFA',
         borderRadius: 16,
         padding: 20,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: '#EEEEEE',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     infoItem: {
         flexDirection: 'row',
@@ -301,17 +320,17 @@ const styles = StyleSheet.create({
     },
     infoLabel: {
         fontSize: 12,
-        color: theme.colors.textSecondary,
+        color: '#666666',
         marginBottom: 2,
     },
     infoValue: {
         fontSize: 16,
-        color: theme.colors.text,
+        color: '#000000',
         fontWeight: '500',
     },
     divider: {
         height: 1,
-        backgroundColor: theme.colors.border,
+        backgroundColor: '#EEEEEE',
         marginVertical: 10,
         marginLeft: 55,
     },

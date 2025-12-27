@@ -10,36 +10,36 @@ import { Platform } from 'react-native';
 
 export const theme = {
   colors: {
-    // Core Backgrounds
-    appBackground: '#04060D',
-    surface: '#111420',
-    surfaceLight: '#1C2136',
-    surfaceHighlight: '#2A3152',
+    // Core Backgrounds (Light Mode)
+    appBackground: '#FFFFFF', // Pure White
+    surface: '#FFFFFF',       // Pure white
+    surfaceLight: '#FFFFFF',  // Pure White
+    surfaceHighlight: '#FFFFFF', // Pure White
 
     // Brand Colors
-    primary: '#00F5A0',
-    secondary: '#00D9F5',
-    accent: '#7000FF',
+    primary: '#10B981',       // Emerald Green (Darker for better contrast on white)
+    secondary: '#0EA5E9',     // Sky Blue
+    accent: '#8B5CF6',        // Violet
 
     // Status Colors
-    success: '#00F5A0',
-    warning: '#FFB800',
-    error: '#FF3D71',
-    info: '#00D9F5',
+    success: '#10B981',
+    warning: '#F59E0B',
+    error: '#EF4444',
+    info: '#3B82F6',
 
     // Typography
-    text: '#FFFFFF',
-    textSecondary: '#8F9BB3',
-    textTertiary: '#4B5563',
+    text: '#1E293B',          // Slate 800 (Soft Black)
+    textSecondary: '#64748B', // Slate 500
+    textTertiary: '#94A3B8',  // Slate 400
 
     // Borders & Dividers
-    border: 'rgba(255, 255, 255, 0.08)',
-    borderLight: 'rgba(255, 255, 255, 0.04)',
+    border: '#E2E8F0',
+    borderLight: '#F1F5F9',
 
     // Special
-    glass: 'rgba(255, 255, 255, 0.03)',
-    glassBorder: 'rgba(255, 255, 255, 0.1)',
-    warningLight: 'rgba(255, 184, 0, 0.1)',
+    glass: 'rgba(255, 255, 255, 0.7)',
+    glassBorder: 'rgba(226, 232, 240, 0.6)',
+    warningLight: 'rgba(245, 158, 11, 0.1)',
   },
 
   spacing: {

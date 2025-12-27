@@ -107,7 +107,7 @@ export default function ForgotPasswordScreen({ navigation, route }) {
     };
 
     return (
-        <Container style={styles.container}>
+        <Container variant="light" style={styles.container}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Logo and Branding */}
                 <View style={styles.brandSection}>
@@ -169,7 +169,7 @@ export default function ForgotPasswordScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#0a0e1a',
+        backgroundColor: theme.colors.appBackground,
         flex: 1,
     },
     scrollContent: {
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
         display: 'none',
         fontSize: 28,
         fontWeight: '900',
-        color: '#ffffff',
+        color: theme.colors.text,
         letterSpacing: 6,
         marginBottom: 4,
     },
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#ffffff',
+        color: theme.colors.text,
         marginBottom: 4,
     },
     subtitle: {

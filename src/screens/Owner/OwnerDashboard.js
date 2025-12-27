@@ -373,7 +373,7 @@ export default function OwnerDashboard() {
     );
 
     return (
-        <Container>
+        <Container variant="light">
             <View style={styles.header}>
                 <Text style={styles.title}>Super Admin (Owner)</Text>
                 <Button title="Logout" onPress={logout} variant="outline" style={{ paddingVertical: 4, paddingHorizontal: 12 }} />
@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
     title: {
         ...theme.typography.header,
         fontSize: 20,
+        color: theme.colors.text,
     },
     statsOverview: {
         flexDirection: 'row',
@@ -805,7 +806,7 @@ const styles = StyleSheet.create({
         borderColor: theme.colors.border,
     },
     cardTitle: {
-        color: '#fff',
+        color: theme.colors.text,
         fontSize: 16,
         fontWeight: 'bold',
     },
@@ -944,7 +945,7 @@ const styles = StyleSheet.create({
         borderBottomColor: theme.colors.border,
     },
     playerName: {
-        color: '#fff',
+        color: theme.colors.text,
         fontSize: 16,
         fontWeight: 'bold',
     },
@@ -1004,7 +1005,7 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
     infoValue: {
-        color: '#fff',
+        color: theme.colors.text,
         fontSize: 16,
         fontWeight: '500',
     },
