@@ -670,6 +670,16 @@ app.post('/api/tournaments/:id/join', async (req, res) => {
         if (!tournament) return res.status(404).json({ error: 'Tournament not found' });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
+        // Check Registration Deadline
+        if (tournament.registrationDeadline) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadlineDate = new Date(tournament.registrationDeadline);
+            if (deadlineDate < today) {
+                return res.status(400).json({ error: "Registration deadline has passed" });
+            }
+        }
+
         const alreadyJoined = tournament.players.some(p => p.user.toString() === userId);
         if (alreadyJoined) return res.status(400).json({ error: 'Already joined' });
 
@@ -832,6 +842,16 @@ app.post('/api/payments/create-tournament-order', async (req, res) => {
         const tournament = await Tournament.findById(tournamentId);
 
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+        // Check Registration Deadline
+        if (tournament.registrationDeadline) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadlineDate = new Date(tournament.registrationDeadline);
+            if (deadlineDate < today) {
+                return res.status(400).json({ error: "Registration deadline has passed" });
+            }
+        }
 
         // Check if user already joined
         const existingPlayer = tournament.players.find(p => p.user.toString() === userId);

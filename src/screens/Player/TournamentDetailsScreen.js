@@ -15,14 +15,34 @@ export default function TournamentDetailsScreen({ route, navigation }) {
     const { joinTournament, leaveTournament, loadTournaments } = useTournaments();
 
     // We need fresh state to reflect join/leave changes immediately
-    // For now we use the passed param, but ideally we should fetch fresh details or update context
     const isJoined = tournament.players.some(p => (p.user?._id || p.user) === user.id);
-    const canJoin = tournament.status === 'PENDING' && !isJoined;
+
+    // Check Registration Deadline
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadlineDate = tournament.registrationDeadline ? new Date(tournament.registrationDeadline) : null;
+    const isDeadlinePassed = deadlineDate ? deadlineDate < today : false;
+
+    const canJoin = tournament.status === 'PENDING' && !isJoined && !isDeadlinePassed;
 
     // --- Dynamic Sport Profiles ---
     const [showProfileModal, setShowProfileModal] = React.useState(false);
     const [sportDetails, setSportDetails] = React.useState({});
     const [profileLoaded, setProfileLoaded] = React.useState(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // Config for supported sports
     const SPORT_CONFIGS = {
@@ -404,6 +424,14 @@ export default function TournamentDetailsScreen({ route, navigation }) {
                             <LucideClock size={20} color={theme.colors.textSecondary} />
                             <Text style={styles.infoText}>{tournament.time}</Text>
                         </View>
+                        {tournament.registrationDeadline && (
+                            <View style={styles.infoRow}>
+                                <LucideClock size={20} color={theme.colors.error} />
+                                <Text style={{ color: isDeadlinePassed ? theme.colors.error : theme.colors.textSecondary, fontWeight: 'bold' }}>
+                                    Register by: {tournament.registrationDeadline}
+                                </Text>
+                            </View>
+                        )}
                         <View style={styles.infoRow}>
                             <LucideUsers size={20} color={theme.colors.textSecondary} />
                             <Text style={styles.infoText}>{tournament.type || 'Single'} Format</Text>
@@ -415,6 +443,7 @@ export default function TournamentDetailsScreen({ route, navigation }) {
                                 <Text style={[styles.infoText, { flex: 1 }]}>{tournament.address || 'Venue details not provided'}</Text>
                             </View>
                         </View>
+
                     </View>
 
                     <View style={styles.divider} />
@@ -452,10 +481,11 @@ export default function TournamentDetailsScreen({ route, navigation }) {
                         </View>
 
                         <Button
-                            title={isJoined ? "ENROLLED" : (tournament.status === 'PENDING' ? (tournament.entryFee > 0 ? `PAY ₹${tournament.entryFee} & JOIN` : "JOIN NOW") : "REGISTRATION CLOSED")}
-                            variant={isJoined ? "outline" : (tournament.status === 'PENDING' ? "primary" : "ghost")}
-                            onPress={!isJoined && canJoin ? initiateJoinFlow : null}
-                            style={{ minWidth: 160, borderColor: isJoined ? theme.colors.success : undefined }}
+                            title={isJoined ? "ENROLLED" : (isDeadlinePassed ? "REGISTRATION CLOSED" : (tournament.status === 'PENDING' ? (tournament.entryFee > 0 ? `PAY ₹${tournament.entryFee} & JOIN` : "JOIN NOW") : "TOURNAMENT ENDED"))}
+                            variant={isJoined ? "outline" : (canJoin ? "primary" : "ghost")}
+                            onPress={canJoin ? initiateJoinFlow : null}
+                            disabled={!canJoin && !isJoined}
+                            style={{ minWidth: 160, borderColor: isJoined ? theme.colors.success : undefined, opacity: (!canJoin && !isJoined) ? 0.6 : 1 }}
                             textStyle={{ color: isJoined ? theme.colors.success : undefined }}
                         />
                     </View>

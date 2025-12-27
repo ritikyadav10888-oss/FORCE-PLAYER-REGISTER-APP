@@ -116,7 +116,13 @@ export default function PlayerDashboard({ navigation, route }) {
 
     const renderTournament = ({ item }) => {
         const isJoined = item.players.some(p => (p.user?._id || p.user) === user.id);
-        const canJoin = item.status === 'PENDING' && !isJoined;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const deadlineDate = item.registrationDeadline ? new Date(item.registrationDeadline) : null;
+        const isDeadlinePassed = deadlineDate ? deadlineDate < today : false;
+
+        const canJoin = item.status === 'PENDING' && !isJoined && !isDeadlinePassed;
         const normalizedType = (item.type || '').toUpperCase();
 
         const handleJoinPress = () => {
@@ -157,7 +163,7 @@ export default function PlayerDashboard({ navigation, route }) {
                             <Text style={styles.countText}>{item.players.length} Competitors</Text>
                         </View>
                         <Button
-                            title={isJoined ? "ENROLLED" : (item.status === 'PENDING' ? `JOIN (₹${item.entryFee || 500})` : "CLOSED")}
+                            title={isJoined ? "ENROLLED" : (isDeadlinePassed ? "REG. CLOSED" : (item.status === 'PENDING' ? `JOIN (₹${item.entryFee || 500})` : "CLOSED"))}
                             variant={isJoined ? "outline" : (item.status === 'PENDING' ? "primary" : "ghost")}
                             disabled={!canJoin}
                             onPress={!isJoined && canJoin ? handleJoinPress : undefined}

@@ -32,7 +32,7 @@ export default function OrganizerDashboard({ navigation }) {
     const [showRegistrationPicker, setShowRegistrationPicker] = useState(false);
     const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
-    const [newTournament, setNewTournament] = useState({ name: '', gameType: '', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', type: 'Single', format: 'KNOCKOUT', address: '' });
+    const [newTournament, setNewTournament] = useState({ name: '', gameType: '', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', format: 'KNOCKOUT', address: '' });
     const [formErrors, setFormErrors] = useState({});
     const [selectedAnalytic, setSelectedAnalytic] = useState(null); // For analytics drill-down
 
@@ -205,7 +205,7 @@ export default function OrganizerDashboard({ navigation }) {
 
             const payload = {
                 ...newTournament,
-                type: (newTournament.type || 'SINGLE').toUpperCase(),
+                type: 'SINGLE',
                 organizerId: user.id,
                 bannerBase64
             };
@@ -223,7 +223,7 @@ export default function OrganizerDashboard({ navigation }) {
             setShowCreate(false);
             setIsEditing(false);
             setEditingId(null);
-            setNewTournament({ name: '', gameType: 'Single', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', address: '' });
+            setNewTournament({ name: '', gameType: '', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', address: '', format: 'KNOCKOUT' });
             setSelectedBanner(null);
             setFormErrors({});
         } catch (error) {

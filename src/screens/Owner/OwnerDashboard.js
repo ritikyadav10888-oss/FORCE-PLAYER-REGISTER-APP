@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { Alert, FlatList, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as DocumentPicker from 'expo-document-picker';
+import { Calendar, ChevronDown, Clock, ImagePlus } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Button from '../../components/Button';
 import Container from '../../components/Container';
 import Input from '../../components/Input';
@@ -10,7 +13,7 @@ import { theme } from '../../styles/theme';
 
 export default function OwnerDashboard() {
     const { logout, registerUser } = useAuth();
-    const { tournaments, organizers, players, verifyUser, blockUser, loadOrganizers, updateAccess, payOrganizer } = useTournaments();
+    const { tournaments, organizers, players, verifyUser, blockUser, loadOrganizers, updateAccess, payOrganizer, createTournament } = useTournaments();
     const [selectedTournament, setSelectedTournament] = useState(null);
     const [view, setView] = useState('tournaments'); // 'tournaments', 'organizers', or 'players'
     const [showAddOrg, setShowAddOrg] = useState(false);
@@ -18,6 +21,30 @@ export default function OwnerDashboard() {
     const [isCreating, setIsCreating] = useState(false);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [selectedOrganizer, setSelectedOrganizer] = useState(null);
+
+    // Tournament Creation State (for Owner creating on behalf of Org)
+    const [showCreateTournament, setShowCreateTournament] = useState(false);
+    const [newTournament, setNewTournament] = useState({ name: '', gameType: '', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', format: 'KNOCKOUT', address: '' });
+    const [formErrors, setFormErrors] = useState({});
+    const [selectedBanner, setSelectedBanner] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    // Pickers State
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+    const [showRegistrationPicker, setShowRegistrationPicker] = useState(false);
+    const [showSportPicker, setShowSportPicker] = useState(false);
+    const [showTournamentFormatPicker, setShowTournamentFormatPicker] = useState(false);
+
+    const TOURNAMENT_FORMATS = ['KNOCKOUT', 'ROUND_ROBIN'];
+    const ALL_SPORTS = [
+        'Archery', 'Athletics', 'Badminton', 'Basketball', 'Billiards & Snooker', 'Boxing',
+        'Carrom', 'Chess', 'Cricket', 'Cycling', 'Football', 'Golf', 'Gymnastics',
+        'Handball', 'Hockey', 'Judo', 'Kabaddi', 'Karate', 'Kho Kho', 'Rugby',
+        'Shooting', 'Squash', 'Swimming', 'Table Tennis', 'Taekwondo', 'Tennis',
+        'Throwball', 'Volleyball', 'Wrestling'
+    ].sort();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [filterGame, setFilterGame] = useState('All');
@@ -156,6 +183,17 @@ export default function OwnerDashboard() {
                     <Text style={[styles.cardSubtitle, { color: theme.colors.secondary }]}>Access: {expiryDate}</Text>
 
                     <View style={styles.moderationRow}>
+                        <TouchableOpacity
+                            style={[styles.modBtnBlock, { backgroundColor: theme.colors.primary, flex: 2, marginRight: 8 }]}
+                            onPress={() => {
+                                setSelectedOrganizer(item);
+                                setNewTournament(prev => ({ ...prev, gameType: 'Cricket' })); // Default
+                                setShowCreateTournament(true);
+                            }}
+                        >
+                            <Text style={styles.modBtnText}>+ Create Tournament</Text>
+                        </TouchableOpacity>
+
                         {!item.isVerified && (
                             <TouchableOpacity style={styles.modBtnVerify} onPress={() => verifyUser(item.id)}>
                                 <Text style={styles.modBtnText}>Verify</Text>
@@ -372,6 +410,76 @@ export default function OwnerDashboard() {
         </>
     );
 
+    // --- Tournament Creation Logic Helpers (Added) ---
+    const pickBanner = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', copyToCacheDirectory: true });
+            if (!result.canceled) setSelectedBanner(result.assets[0]);
+        } catch (e) { Alert.alert("Error picking image"); }
+    };
+
+    const fileToBase64 = async (file) => {
+        if (!file) return null;
+        try {
+            if (Platform.OS === 'web') {
+                if (file.file) {
+                    return await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file.file);
+                    });
+                } else if (file.uri) {
+                    const response = await fetch(file.uri);
+                    const blob = await response.blob();
+                    return await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                }
+            } else {
+                const FileSystem = require('expo-file-system');
+                return await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+            }
+        } catch (e) { return null; }
+        return null;
+    };
+
+    const handleCreateTournament = async () => {
+        if (!newTournament.name || !newTournament.gameType || !newTournament.date || !newTournament.entryFee) {
+            Alert.alert("Error", "Please fill required fields (Name, Game, Date, Fee)");
+            return;
+        }
+
+        try {
+            setIsUploading(true);
+            let bannerBase64 = null;
+            if (selectedBanner) {
+                bannerBase64 = await fileToBase64(selectedBanner);
+            }
+
+            const payload = {
+                ...newTournament,
+                type: 'SINGLE',
+                organizerId: selectedOrganizer.id,
+                bannerBase64
+            };
+
+            await createTournament(payload);
+            Alert.alert("Success", `Tournament created for ${selectedOrganizer.name}!`);
+            setShowCreateTournament(false);
+            setNewTournament({ name: '', gameType: '', date: '', time: '', endTime: '', registrationDeadline: '', entryFee: '', format: 'KNOCKOUT', address: '' });
+            setSelectedBanner(null);
+        } catch (error) {
+            Alert.alert("Error", error.message || "Operation failed");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+
     return (
         <Container variant="light">
             <View style={styles.header}>
@@ -383,6 +491,7 @@ export default function OwnerDashboard() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
             >
+                {/* ... existing render logic ... */}
                 {selectedPlayer ? (
                     <View style={{ flex: 1 }}>
                         <Button
@@ -411,6 +520,8 @@ export default function OwnerDashboard() {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                            {/* ... player details ... */}
+                            {/* (I am effectively replacing the entire return method here to inject the Modal at the end safely) */}
                             <View style={styles.infoSection}>
                                 <Text style={styles.infoLabel}>Role</Text>
                                 <Text style={styles.infoValue}>{selectedPlayer.user?.role || selectedPlayer.role || 'PLAYER'}</Text>
@@ -484,6 +595,13 @@ export default function OwnerDashboard() {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                            {/* ... existing organizer details ... */}
+                            <Button
+                                title="+ Create Tournament for this Organizer"
+                                onPress={() => setShowCreateTournament(true)}
+                                style={{ marginBottom: 20, backgroundColor: theme.colors.primary }}
+                            />
+
                             <View style={styles.infoSection}>
                                 <Text style={styles.infoLabel}>Role</Text>
                                 <Text style={styles.infoValue}>ORGANIZER</Text>
@@ -720,6 +838,283 @@ export default function OwnerDashboard() {
                     </View>
                 )}
             </KeyboardAvoidingView>
+
+            {/* CREATE TOURNAMENT MODAL */}
+            <Modal visible={showCreateTournament} animationType="slide" transparent={true} onRequestClose={() => setShowCreateTournament(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>
+                            Create Tournament for {selectedOrganizer?.name}
+                        </Text>
+
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                            {/* Banner Upload */}
+                            <TouchableOpacity onPress={pickBanner} style={styles.bannerUpload}>
+                                {selectedBanner ? (
+                                    <Image source={{ uri: selectedBanner.uri }} style={styles.bannerPreview} resizeMode="cover" />
+                                ) : (
+                                    <View style={{ alignItems: 'center' }}>
+                                        <ImagePlus size={32} color={theme.colors.textSecondary} />
+                                        <Text style={styles.uploadText}>Add Tournament Banner</Text>
+                                        <Text style={{ fontSize: 10, color: theme.colors.textSecondary, marginTop: 4, textAlign: 'center' }}>
+                                            Rec: 16:9 (1280x720) | Max 5MB
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+
+                            <Input
+                                label="Tournament Name"
+                                placeholder="e.g., Summer Cricket Championship"
+                                value={newTournament.name}
+                                onChangeText={t => setNewTournament(prev => ({ ...prev, name: t }))}
+                                error={formErrors.name}
+                                variant="light"
+                            />
+
+                            <Input
+                                label="Venue Address"
+                                placeholder="e.g., Force Arena, Mumbai"
+                                value={newTournament.address}
+                                onChangeText={t => setNewTournament(prev => ({ ...prev, address: t }))}
+                                error={formErrors.address}
+                                variant="light"
+                            />
+
+                            {/* Sport Dropdown */}
+                            <View style={{ marginBottom: 20 }}>
+                                <Text style={styles.label}>Sport</Text>
+                                <TouchableOpacity onPress={() => setShowSportPicker(true)} style={styles.dropdownBtn}>
+                                    <Text style={{ color: newTournament.gameType ? theme.colors.text : theme.colors.textSecondary, fontSize: 16 }}>
+                                        {newTournament.gameType || 'Select Sport'}
+                                    </Text>
+                                    <ChevronDown size={20} color={theme.colors.textSecondary} />
+                                </TouchableOpacity>
+                                {formErrors.gameType && <Text style={styles.errorText}>{formErrors.gameType}</Text>}
+                            </View>
+
+                            {/* Tournament Format Dropdown */}
+                            <View style={{ marginBottom: 20 }}>
+                                <Text style={styles.label}>Tournament Format</Text>
+                                <TouchableOpacity onPress={() => setShowTournamentFormatPicker(true)} style={styles.dropdownBtn}>
+                                    <Text style={{ color: newTournament.format ? theme.colors.text : theme.colors.textSecondary, fontSize: 16 }}>
+                                        {newTournament.format === 'KNOCKOUT' ? 'Knockout (Elimination)' : newTournament.format === 'ROUND_ROBIN' ? 'Round Robin (League)' : 'Select Format'}
+                                    </Text>
+                                    <ChevronDown size={20} color={theme.colors.textSecondary} />
+                                </TouchableOpacity>
+                                {newTournament.format && (
+                                    <Text style={{ fontSize: 11, color: theme.colors.textSecondary, marginTop: 4 }}>
+                                        {newTournament.format === 'KNOCKOUT' ? 'Single elimination - lose and you\'re out' : 'Everyone plays everyone - most wins takes the title'}
+                                    </Text>
+                                )}
+                            </View>
+
+                            {/* Date Picker */}
+                            <View style={{ marginBottom: 20 }}>
+                                <Text style={styles.label}>Date</Text>
+                                {Platform.OS === 'web' ? (
+                                    <View style={styles.pickerWrapper}>
+                                        <Calendar size={20} color={theme.colors.textSecondary} style={{ marginLeft: 16 }} />
+                                        {React.createElement('input', {
+                                            type: 'date',
+                                            value: newTournament.date,
+                                            onChange: (e) => setNewTournament(prev => ({ ...prev, date: e.target.value })),
+                                            style: { flex: 1, paddingLeft: 10, border: 'none', backgroundColor: 'transparent', height: '100%', fontSize: '16px', outline: 'none' }
+                                        })}
+                                    </View>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.nativeInput}>
+                                            <Calendar size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
+                                            <Text style={{ color: newTournament.date ? theme.colors.text : theme.colors.textSecondary, fontSize: 16 }}>
+                                                {newTournament.date || 'Select Date'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {showDatePicker && (
+                                            <DateTimePicker
+                                                value={newTournament.date ? new Date(newTournament.date) : new Date()}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(e, d) => {
+                                                    setShowDatePicker(false);
+                                                    if (d) setNewTournament(prev => ({ ...prev, date: d.toISOString().split('T')[0] }));
+                                                }}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                                {formErrors.date && <Text style={styles.errorText}>{formErrors.date}</Text>}
+                            </View>
+
+                            {/* Time Picker */}
+                            <View style={{ marginBottom: 20 }}>
+                                <Text style={styles.label}>Time</Text>
+                                {Platform.OS === 'web' ? (
+                                    <View style={styles.pickerWrapper}>
+                                        <Clock size={20} color={theme.colors.textSecondary} style={{ marginLeft: 16 }} />
+                                        {React.createElement('input', {
+                                            type: 'time',
+                                            value: newTournament.time,
+                                            onChange: (e) => setNewTournament(prev => ({ ...prev, time: e.target.value })),
+                                            style: { flex: 1, paddingLeft: 10, border: 'none', backgroundColor: 'transparent', height: '100%', fontSize: '16px', outline: 'none' }
+                                        })}
+                                    </View>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.nativeInput}>
+                                            <Clock size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
+                                            <Text style={{ color: newTournament.time ? theme.colors.text : theme.colors.textSecondary, fontSize: 16 }}>
+                                                {newTournament.time || 'Select Time'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {showTimePicker && (
+                                            <DateTimePicker
+                                                value={newTournament.time ? new Date(`2000-01-01T${newTournament.time}`) : new Date()}
+                                                mode="time"
+                                                is24Hour={true}
+                                                display="default"
+                                                onChange={(e, d) => {
+                                                    setShowTimePicker(false);
+                                                    if (d) setNewTournament(prev => ({ ...prev, time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }).slice(0, 5) }));
+                                                }}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                                {formErrors.time && <Text style={styles.errorText}>{formErrors.time}</Text>}
+                            </View>
+
+                            {/* End Time Picker */}
+                            <View style={{ marginBottom: 20 }}>
+                                <Text style={styles.label}>End Time (Optional)</Text>
+                                {Platform.OS === 'web' ? (
+                                    <View style={styles.pickerWrapper}>
+                                        <Clock size={20} color={theme.colors.textSecondary} style={{ marginLeft: 16 }} />
+                                        {React.createElement('input', {
+                                            type: 'time',
+                                            value: newTournament.endTime,
+                                            onChange: (e) => setNewTournament(prev => ({ ...prev, endTime: e.target.value })),
+                                            style: { flex: 1, paddingLeft: 10, border: 'none', backgroundColor: 'transparent', height: '100%', fontSize: '16px', outline: 'none' }
+                                        })}
+                                    </View>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.nativeInput}>
+                                            <Clock size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
+                                            <Text style={{ color: newTournament.endTime ? theme.colors.text : theme.colors.textSecondary, fontSize: 16 }}>
+                                                {newTournament.endTime || 'Select End Time'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {showEndTimePicker && (
+                                            <DateTimePicker
+                                                value={newTournament.endTime ? new Date(`2000-01-01T${newTournament.endTime}`) : new Date()}
+                                                mode="time"
+                                                is24Hour={true}
+                                                display="default"
+                                                onChange={(e, d) => {
+                                                    setShowEndTimePicker(false);
+                                                    if (d) setNewTournament(prev => ({ ...prev, endTime: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }).slice(0, 5) }));
+                                                }}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                            </View>
+
+                            {/* Registration Deadline Picker */}
+                            <View style={{ marginBottom: 20 }}>
+                                <Text style={styles.label}>Registration Deadline</Text>
+                                {Platform.OS === 'web' ? (
+                                    <View style={styles.pickerWrapper}>
+                                        <Calendar size={20} color={theme.colors.textSecondary} style={{ marginLeft: 16 }} />
+                                        {React.createElement('input', {
+                                            type: 'date',
+                                            value: newTournament.registrationDeadline,
+                                            onChange: (e) => setNewTournament(prev => ({ ...prev, registrationDeadline: e.target.value })),
+                                            style: { flex: 1, paddingLeft: 10, border: 'none', backgroundColor: 'transparent', height: '100%', fontSize: '16px', outline: 'none' }
+                                        })}
+                                    </View>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity onPress={() => setShowRegistrationPicker(true)} style={styles.nativeInput}>
+                                            <Calendar size={20} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
+                                            <Text style={{ color: newTournament.registrationDeadline ? theme.colors.text : theme.colors.textSecondary, fontSize: 16 }}>
+                                                {newTournament.registrationDeadline || 'Select Deadline'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {showRegistrationPicker && (
+                                            <DateTimePicker
+                                                value={newTournament.registrationDeadline ? new Date(newTournament.registrationDeadline) : new Date()}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(e, d) => {
+                                                    setShowRegistrationPicker(false);
+                                                    if (d) setNewTournament(prev => ({ ...prev, registrationDeadline: d.toISOString().split('T')[0] }));
+                                                }}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                            </View>
+
+                            <Input
+                                label="Entry Fee (₹)"
+                                placeholder="500"
+                                keyboardType="numeric"
+                                value={String(newTournament.entryFee || '')}
+                                onChangeText={t => setNewTournament(prev => ({ ...prev, entryFee: t }))}
+                                error={formErrors.entryFee}
+                                variant="light"
+                            />
+
+                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                                <Button title="Cancel" variant="outline" onPress={() => setShowCreateTournament(false)} style={{ flex: 1 }} />
+                                <Button title="Create" onPress={handleCreateTournament} loading={isUploading} style={{ flex: 1 }} />
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* NESTED MODALS FOR PICKERS */}
+            <Modal visible={showSportPicker} transparent animationType="slide" onRequestClose={() => setShowSportPicker(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Select Sport</Text>
+                        <ScrollView>
+                            {ALL_SPORTS.map(s => (
+                                <TouchableOpacity key={s} onPress={() => { setNewTournament(prev => ({ ...prev, gameType: s })); setShowSportPicker(false); }} style={styles.modalItem}>
+                                    <Text style={styles.modalItemText}>{s}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <Button title="Close" variant="outline" onPress={() => setShowSportPicker(false)} style={{ marginTop: 10 }} />
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={showTournamentFormatPicker} transparent animationType="slide" onRequestClose={() => setShowTournamentFormatPicker(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Select Format</Text>
+                        <ScrollView>
+                            {TOURNAMENT_FORMATS.map(f => (
+                                <TouchableOpacity key={f} onPress={() => { setNewTournament(prev => ({ ...prev, format: f })); setShowTournamentFormatPicker(false); }} style={styles.modalItem}>
+                                    <View>
+                                        <Text style={styles.modalItemText}>
+                                            {f === 'KNOCKOUT' ? '🏆 Knockout' : '🔄 Round Robin'}
+                                        </Text>
+                                        <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
+                                            {f === 'KNOCKOUT' ? 'Single elimination' : 'League format'}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <Button title="Close" variant="outline" onPress={() => setShowTournamentFormatPicker(false)} style={{ marginTop: 10 }} />
+                    </View>
+                </View>
+            </Modal>
         </Container>
     );
 }
@@ -1042,5 +1437,94 @@ const styles = StyleSheet.create({
     },
     activeFilterChipText: {
         color: '#fff',
+    },
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: theme.colors.surface,
+        borderRadius: 16,
+        padding: 20,
+        maxHeight: '80%',
+        width: '100%',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 20,
+    },
+    modalItem: {
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+    },
+    modalItemText: {
+        color: theme.colors.text,
+        fontSize: 16,
+    },
+    label: {
+        color: theme.colors.text,
+        marginBottom: 8,
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    dropdownBtn: {
+        backgroundColor: theme.colors.surfaceHighlight,
+        padding: 14,
+        borderRadius: 10,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    errorText: {
+        color: theme.colors.error,
+        fontSize: 12,
+        marginTop: 4,
+    },
+    bannerUpload: {
+        height: 150,
+        backgroundColor: theme.colors.surfaceHighlight,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderStyle: 'dashed',
+        overflow: 'hidden',
+    },
+    bannerPreview: {
+        width: '100%',
+        height: '100%',
+    },
+    uploadText: {
+        color: theme.colors.textSecondary,
+        marginTop: 10,
+        fontWeight: '600',
+    },
+    pickerWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
+        borderRadius: 10,
+        height: 50,
+        borderWidth: 1,
+        borderColor: '#ccc',
+        overflow: 'hidden',
+    },
+    nativeInput: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surfaceHighlight,
+        padding: 14,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
 });
