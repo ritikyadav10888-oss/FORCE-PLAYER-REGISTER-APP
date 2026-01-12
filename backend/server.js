@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
+const verifyToken = require('./middleware/auth');
 require('dotenv').config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'force_super_secret_key';
@@ -365,7 +366,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // --- Payout Route ---
-app.post('/api/users/:id/payout', async (req, res) => {
+app.post('/api/users/:id/payout', verifyToken, async (req, res) => {
     try {
         const { amount } = req.body;
         const user = await User.findById(req.params.id);
@@ -391,7 +392,7 @@ app.post('/api/users/:id/payout', async (req, res) => {
 });
 
 // --- Moderation Routes (Owner Only) ---
-app.put('/api/users/:id/verify', async (req, res) => {
+app.put('/api/users/:id/verify', verifyToken, async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
         res.json(user);
@@ -400,7 +401,7 @@ app.put('/api/users/:id/verify', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/block', async (req, res) => {
+app.put('/api/users/:id/block', verifyToken, async (req, res) => {
     try {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { isBlocked: blocked }, { new: true });
@@ -410,7 +411,7 @@ app.put('/api/users/:id/block', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/update-access', async (req, res) => {
+app.put('/api/users/:id/update-access', verifyToken, async (req, res) => {
     try {
         const { durationDays } = req.body;
         const user = await User.findById(req.params.id);
@@ -546,7 +547,7 @@ app.get('/api/tournaments', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments', async (req, res) => {
+app.post('/api/tournaments', verifyToken, async (req, res) => {
     try {
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
         const { organizerId } = req.body;
@@ -583,7 +584,7 @@ app.post('/api/tournaments', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id', async (req, res) => {
+app.put('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const { status } = req.body;
         const tournament = await Tournament.findById(req.params.id);
@@ -616,7 +617,7 @@ app.put('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/tournaments/:id', async (req, res) => {
+app.delete('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
@@ -632,7 +633,7 @@ app.delete('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id/matches/:matchIndex', async (req, res) => {
+app.put('/api/tournaments/:id/matches/:matchIndex', verifyToken, async (req, res) => {
     try {
         const { score1, score2, status, winner } = req.body;
         const tournament = await Tournament.findById(req.params.id);
@@ -759,7 +760,7 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // --- Ratings ---
-app.post('/api/users/:id/rate', async (req, res) => {
+app.post('/api/users/:id/rate', verifyToken, async (req, res) => {
     try {
         const { rating, review, userId } = req.body;
         const user = await User.findById(req.params.id);
@@ -810,7 +811,7 @@ app.post('/api/tournaments/:id/checkin', async (req, res) => {
 
 
 
-app.post('/api/tournaments/:id/announce', async (req, res) => {
+app.post('/api/tournaments/:id/announce', verifyToken, async (req, res) => {
     try {
         const { message } = req.body;
         const tournament = await Tournament.findById(req.params.id);
