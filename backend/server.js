@@ -11,6 +11,7 @@ require('dotenv').config();
 const JWT_SECRET = process.env.JWT_SECRET || 'force_super_secret_key';
 const BCRYPT_SALT_ROUNDS = 12; // Increased from 10 for better security
 
+const { verifyToken } = require('./middleware/auth');
 const User = require('./models/User');
 const Tournament = require('./models/Tournament');
 const Transaction = require('./models/Transaction');
@@ -468,8 +469,13 @@ app.get('/api/users/:id', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', verifyToken, async (req, res) => {
     try {
+        // IDOR Protection: Only allow user to update their own profile (or Owner)
+        if (req.user.id !== req.params.id && req.user.role !== 'OWNER') {
+             return res.status(403).json({ error: 'Access denied. You can only update your own account.' });
+        }
+
         const userData = req.body;
 
         // Handle Base64 Profile Image
@@ -546,8 +552,13 @@ app.get('/api/tournaments', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments', async (req, res) => {
+app.post('/api/tournaments', verifyToken, async (req, res) => {
     try {
+        // Role Protection: Only Organizers or Owners can create tournaments
+        if (req.user.role !== 'ORGANIZER' && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: 'Access denied. Only Organizers can create tournaments.' });
+        }
+
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
         const { organizerId } = req.body;
         const organizer = await User.findById(organizerId);
@@ -583,12 +594,17 @@ app.post('/api/tournaments', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id', async (req, res) => {
+app.put('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const { status } = req.body;
         const tournament = await Tournament.findById(req.params.id);
 
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+        // Authorization: Only the creator (organizer) or Owner can update
+        if (tournament.organizerId.toString() !== req.user.id && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: 'Access denied. You are not the organizer of this tournament.' });
+        }
 
         // Generate matches logic when status moves to ONGOING
         if (status === 'ONGOING' && tournament.status === 'PENDING' && (!tournament.matches || tournament.matches.length === 0)) {
@@ -616,10 +632,15 @@ app.put('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/tournaments/:id', async (req, res) => {
+app.delete('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+        // Authorization: Only the creator (organizer) or Owner can delete
+        if (tournament.organizerId.toString() !== req.user.id && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: 'Access denied. You are not the organizer of this tournament.' });
+        }
 
         if (tournament.players.length > 0) {
             return res.status(400).json({ error: "Cannot delete tournament with enrolled players. Please cancel or remove players first." });
