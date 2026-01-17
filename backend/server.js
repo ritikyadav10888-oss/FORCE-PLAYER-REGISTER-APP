@@ -16,6 +16,7 @@ const Tournament = require('./models/Tournament');
 const Transaction = require('./models/Transaction');
 const Notification = require('./models/Notification');
 const { sendPasswordResetEmail, sendWelcomeEmail, testEmailConfig, sendVerificationEmail } = require('./services/emailService');
+const { verifyToken, verifyOwner, verifyUserOrOwner } = require('./middleware/auth');
 const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -365,7 +366,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // --- Payout Route ---
-app.post('/api/users/:id/payout', async (req, res) => {
+app.post('/api/users/:id/payout', verifyOwner, async (req, res) => {
     try {
         const { amount } = req.body;
         const user = await User.findById(req.params.id);
@@ -391,7 +392,7 @@ app.post('/api/users/:id/payout', async (req, res) => {
 });
 
 // --- Moderation Routes (Owner Only) ---
-app.put('/api/users/:id/verify', async (req, res) => {
+app.put('/api/users/:id/verify', verifyOwner, async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
         res.json(user);
@@ -400,7 +401,7 @@ app.put('/api/users/:id/verify', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/block', async (req, res) => {
+app.put('/api/users/:id/block', verifyOwner, async (req, res) => {
     try {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { isBlocked: blocked }, { new: true });
@@ -410,7 +411,7 @@ app.put('/api/users/:id/block', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/update-access', async (req, res) => {
+app.put('/api/users/:id/update-access', verifyOwner, async (req, res) => {
     try {
         const { durationDays } = req.body;
         const user = await User.findById(req.params.id);
@@ -468,7 +469,7 @@ app.get('/api/users/:id', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', verifyUserOrOwner, async (req, res) => {
     try {
         const userData = req.body;
 
@@ -948,8 +949,13 @@ app.post('/api/payments/verify-and-join', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Local: http://localhost:${PORT}`);
-    console.log(`Network: http://192.168.1.173:${PORT}`);
-});
+
+if (require.main === module) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Local: http://localhost:${PORT}`);
+        console.log(`Network: http://192.168.1.173:${PORT}`);
+    });
+}
+
+module.exports = app;
