@@ -8,7 +8,11 @@ const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'force_super_secret_key';
+if (!process.env.JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET is not defined in environment variables.');
+    process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const BCRYPT_SALT_ROUNDS = 12; // Increased from 10 for better security
 
 const User = require('./models/User');
@@ -16,6 +20,7 @@ const Tournament = require('./models/Tournament');
 const Transaction = require('./models/Transaction');
 const Notification = require('./models/Notification');
 const { sendPasswordResetEmail, sendWelcomeEmail, testEmailConfig, sendVerificationEmail } = require('./services/emailService');
+const { verifyToken, authorizeRoles } = require('./middleware/auth');
 const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -365,7 +370,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // --- Payout Route ---
-app.post('/api/users/:id/payout', async (req, res) => {
+app.post('/api/users/:id/payout', verifyToken, authorizeRoles('OWNER'), async (req, res) => {
     try {
         const { amount } = req.body;
         const user = await User.findById(req.params.id);
@@ -391,7 +396,7 @@ app.post('/api/users/:id/payout', async (req, res) => {
 });
 
 // --- Moderation Routes (Owner Only) ---
-app.put('/api/users/:id/verify', async (req, res) => {
+app.put('/api/users/:id/verify', verifyToken, authorizeRoles('OWNER'), async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
         res.json(user);
@@ -400,7 +405,7 @@ app.put('/api/users/:id/verify', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/block', async (req, res) => {
+app.put('/api/users/:id/block', verifyToken, authorizeRoles('OWNER'), async (req, res) => {
     try {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { isBlocked: blocked }, { new: true });
@@ -410,7 +415,7 @@ app.put('/api/users/:id/block', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/update-access', async (req, res) => {
+app.put('/api/users/:id/update-access', verifyToken, authorizeRoles('OWNER'), async (req, res) => {
     try {
         const { durationDays } = req.body;
         const user = await User.findById(req.params.id);
@@ -458,7 +463,7 @@ app.get('/api/players', async (req, res) => {
 
 
 
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', verifyToken, async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -468,8 +473,13 @@ app.get('/api/users/:id', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', verifyToken, async (req, res) => {
     try {
+        // Ensure user can only update their own profile (or Admin)
+        if (req.user.id !== req.params.id && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: "Access denied: You can only update your own profile" });
+        }
+
         const userData = req.body;
 
         // Handle Base64 Profile Image
@@ -546,9 +556,15 @@ app.get('/api/tournaments', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments', async (req, res) => {
+app.post('/api/tournaments', verifyToken, authorizeRoles('ORGANIZER', 'OWNER'), async (req, res) => {
     try {
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
+
+        // Enforce Organizer Identity (prevent creating for others)
+        if (req.user.role !== 'OWNER' && req.body.organizerId !== req.user.id) {
+             return res.status(403).json({ error: "You can only create tournaments for yourself" });
+        }
+
         const { organizerId } = req.body;
         const organizer = await User.findById(organizerId);
 
@@ -583,12 +599,17 @@ app.post('/api/tournaments', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id', async (req, res) => {
+app.put('/api/tournaments/:id', verifyToken, authorizeRoles('ORGANIZER', 'OWNER'), async (req, res) => {
     try {
         const { status } = req.body;
         const tournament = await Tournament.findById(req.params.id);
 
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+        // Check ownership
+        if (req.user.role !== 'OWNER' && tournament.organizerId.toString() !== req.user.id) {
+            return res.status(403).json({ error: "You can only update your own tournaments" });
+        }
 
         // Generate matches logic when status moves to ONGOING
         if (status === 'ONGOING' && tournament.status === 'PENDING' && (!tournament.matches || tournament.matches.length === 0)) {
@@ -616,7 +637,7 @@ app.put('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/tournaments/:id', async (req, res) => {
+app.delete('/api/tournaments/:id', verifyToken, authorizeRoles('OWNER'), async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
@@ -632,7 +653,7 @@ app.delete('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id/matches/:matchIndex', async (req, res) => {
+app.put('/api/tournaments/:id/matches/:matchIndex', verifyToken, authorizeRoles('ORGANIZER', 'OWNER'), async (req, res) => {
     try {
         const { score1, score2, status, winner } = req.body;
         const tournament = await Tournament.findById(req.params.id);
@@ -661,9 +682,15 @@ app.put('/api/tournaments/:id/matches/:matchIndex', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments/:id/join', async (req, res) => {
+app.post('/api/tournaments/:id/join', verifyToken, async (req, res) => {
     try {
         const { userId, transactionId, ...playerDetails } = req.body;
+
+        // Ensure user is joining for themselves
+        if (req.user.role !== 'OWNER' && userId !== req.user.id) {
+             return res.status(403).json({ error: "You can only join tournaments for yourself" });
+        }
+
         const tournament = await Tournament.findById(req.params.id);
         const user = await User.findById(userId);
 
@@ -703,9 +730,15 @@ app.post('/api/tournaments/:id/join', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments/:id/leave', async (req, res) => {
+app.post('/api/tournaments/:id/leave', verifyToken, async (req, res) => {
     try {
         const { userId } = req.body;
+
+        // Ensure user is leaving for themselves
+        if (req.user.role !== 'OWNER' && userId !== req.user.id) {
+             return res.status(403).json({ error: "You can only leave tournaments for yourself" });
+        }
+
         const tournament = await Tournament.findById(req.params.id);
         const user = await User.findById(userId);
 
@@ -779,7 +812,7 @@ app.post('/api/users/:id/rate', async (req, res) => {
 // --- New Business Features ---
 
 // Check-In
-app.post('/api/tournaments/:id/checkin', async (req, res) => {
+app.post('/api/tournaments/:id/checkin', verifyToken, authorizeRoles('ORGANIZER', 'OWNER'), async (req, res) => {
     try {
         const { userId, status } = req.body;
 
@@ -810,10 +843,15 @@ app.post('/api/tournaments/:id/checkin', async (req, res) => {
 
 
 
-app.post('/api/tournaments/:id/announce', async (req, res) => {
+app.post('/api/tournaments/:id/announce', verifyToken, authorizeRoles('ORGANIZER', 'OWNER'), async (req, res) => {
     try {
         const { message } = req.body;
         const tournament = await Tournament.findById(req.params.id);
+
+        // Check ownership
+        if (req.user.role !== 'OWNER' && tournament.organizerId.toString() !== req.user.id) {
+             return res.status(403).json({ error: "You can only announce for your own tournaments" });
+        }
 
         const notifications = tournament.players.map(p => ({
             userId: p.user,
@@ -827,8 +865,11 @@ app.post('/api/tournaments/:id/announce', async (req, res) => {
 });
 
 // Get Notifications
-app.get('/api/users/:id/notifications', async (req, res) => {
+app.get('/api/users/:id/notifications', verifyToken, async (req, res) => {
     try {
+        if (req.user.id !== req.params.id && req.user.role !== 'OWNER') {
+             return res.status(403).json({ error: "Access denied" });
+        }
         const notes = await Notification.find({ userId: req.params.id }).sort({ createdAt: -1 });
         res.json(notes);
     } catch (e) { res.status(400).json({ error: e.message }); }
@@ -836,9 +877,14 @@ app.get('/api/users/:id/notifications', async (req, res) => {
 
 // --- Payment Routes ---
 
-app.post('/api/payments/create-tournament-order', async (req, res) => {
+app.post('/api/payments/create-tournament-order', verifyToken, async (req, res) => {
     try {
         const { tournamentId, userId } = req.body;
+
+        if (req.user.role !== 'OWNER' && userId !== req.user.id) {
+             return res.status(403).json({ error: "Access denied" });
+        }
+
         const tournament = await Tournament.findById(tournamentId);
 
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
@@ -877,7 +923,7 @@ app.post('/api/payments/create-tournament-order', async (req, res) => {
     }
 });
 
-app.post('/api/payments/verify-and-join', async (req, res) => {
+app.post('/api/payments/verify-and-join', verifyToken, async (req, res) => {
     try {
         const {
             razorpay_order_id,
