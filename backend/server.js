@@ -184,6 +184,12 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/verify-email', async (req, res) => {
     try {
         const { email, otp } = req.body;
+
+        // Sentinel Security: Ensure inputs are strings to prevent NoSQL injection
+        if (typeof email !== 'string' || typeof otp !== 'string') {
+            return res.status(400).json({ error: 'Invalid input format' });
+        }
+
         const user = await User.findOne({ email: email.toLowerCase() });
 
         if (!user) return res.status(404).json({ error: "User not found" });
@@ -238,6 +244,12 @@ app.post('/api/auth/send-verification', async (req, res) => {
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
     try {
         let { email, password } = req.body;
+
+        // Sentinel Security: Validate input types
+        if (typeof email !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ error: 'Invalid credentials format' });
+        }
+
         if (email) email = email.toLowerCase();
 
         const user = await User.findOne({ email });
@@ -334,6 +346,12 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 app.post('/api/auth/reset-password', async (req, res) => {
     try {
         let { email, otp, newPassword } = req.body;
+
+        // Sentinel Security: Ensure inputs are strings to prevent NoSQL injection
+        if (typeof email !== 'string' || typeof otp !== 'string' || typeof newPassword !== 'string') {
+            return res.status(400).json({ error: 'Invalid input format' });
+        }
+
         if (email) email = email.toLowerCase();
 
         // Validate new password strength
