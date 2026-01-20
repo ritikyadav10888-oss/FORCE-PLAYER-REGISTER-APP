@@ -1,0 +1,4 @@
+## 2024-05-22 - [Mongoose Password Leakage via Default Selection]
+**Vulnerability:** The `password` field in the Mongoose `User` schema was being returned by default in all queries (e.g., `User.findById`). This caused sensitive password hashes to be exposed in API responses, such as `GET /api/users/:id`, if the controller didn't manually delete the field.
+**Learning:** Relying on manual filtering (e.g., `delete user.password`) in every controller is error-prone and insecure by design. If a developer forgets to delete it in one place, the data leaks.
+**Prevention:** Always use `select: false` in the Mongoose schema definition for sensitive fields (passwords, tokens, etc.). This ensures they are excluded from query results by default. When the field is actually needed (e.g., during login), it must be explicitly requested using `.select('+fieldName')`.

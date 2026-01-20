@@ -240,7 +240,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         let { email, password } = req.body;
         if (email) email = email.toLowerCase();
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).select('+password');
 
         // Prevent timing attacks - always hash even if user doesn't exist
         const passwordToCompare = user ? user.password : await bcrypt.hash('dummy_password', BCRYPT_SALT_ROUNDS);
