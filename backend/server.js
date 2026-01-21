@@ -104,7 +104,20 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/force-app')
 app.post('/api/auth/register', async (req, res) => {
     try {
         console.log('Register Body:', req.body); // Keep debug
-        const userData = req.body;
+
+        // 🛡️ Sentinel Security Fix: Whitelist allowed fields to prevent Mass Assignment
+        const allowedFields = [
+            'name', 'email', 'password', 'role', 'mobile', 'address',
+            'state', 'district', 'pincode', 'coordinates', 'dob',
+            'game', 'gameType', 'strength', 'aadharNumber'
+        ];
+
+        const userData = {};
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                userData[field] = req.body[field];
+            }
+        });
 
         // Validate password strength
         const passwordCheck = validatePassword(userData.password);
@@ -112,9 +125,9 @@ app.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ error: passwordCheck.message });
         }
 
-        // Handle Base64 Upload
-        if (userData.aadharCardBase64) {
-            const matches = userData.aadharCardBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        // Handle Base64 Upload (Special Handling)
+        if (req.body.aadharCardBase64) {
+            const matches = req.body.aadharCardBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
             let buffer;
 
             if (matches && matches.length === 3) {
@@ -122,7 +135,7 @@ app.post('/api/auth/register', async (req, res) => {
                 buffer = Buffer.from(matches[2], 'base64');
             } else {
                 // Raw base64
-                buffer = Buffer.from(userData.aadharCardBase64, 'base64');
+                buffer = Buffer.from(req.body.aadharCardBase64, 'base64');
             }
 
             const filename = 'aadhar-' + Date.now() + '.jpg';
@@ -130,7 +143,6 @@ app.post('/api/auth/register', async (req, res) => {
 
             fs.writeFileSync(filepath, buffer);
             userData.aadharCard = filepath;
-            delete userData.aadharCardBase64; // Don't save base64 to DB
         }
 
         if (userData.email) userData.email = userData.email.toLowerCase();
@@ -140,15 +152,14 @@ app.post('/api/auth/register', async (req, res) => {
         if (existing) return res.status(400).json({ error: 'User already exists with this email' });
 
         // Calculate Access Expiry for Organizers
-        if (userData.role === 'ORGANIZER' && userData.accessDurationDays) {
-            const days = parseInt(userData.accessDurationDays);
+        if (userData.role === 'ORGANIZER' && req.body.accessDurationDays) {
+            const days = parseInt(req.body.accessDurationDays);
             if (!isNaN(days) && days > 0) {
                 const expiryDate = new Date();
                 expiryDate.setDate(expiryDate.getDate() + days);
                 userData.accessExpiryDate = expiryDate;
             }
         }
-        delete userData.accessDurationDays; // Clean up
 
         // Hash password with stronger salt rounds
         userData.password = await bcrypt.hash(userData.password, BCRYPT_SALT_ROUNDS);
@@ -470,17 +481,29 @@ app.get('/api/users/:id', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
     try {
-        const userData = req.body;
+        // 🛡️ Sentinel Security Fix: Whitelist fields to prevent Mass Assignment
+        const allowedUpdates = [
+            'name', 'mobile', 'address', 'state', 'district', 'pincode',
+            'coordinates', 'dob', 'game', 'gameType', 'strength', 'aadharNumber',
+            'upiId', 'sportProfiles'
+        ];
+
+        const userData = {};
+        allowedUpdates.forEach(field => {
+            if (req.body[field] !== undefined) {
+                userData[field] = req.body[field];
+            }
+        });
 
         // Handle Base64 Profile Image
-        if (userData.profileImageBase64) {
-            const matches = userData.profileImageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (req.body.profileImageBase64) {
+            const matches = req.body.profileImageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
             let buffer;
 
             if (matches && matches.length === 3) {
                 buffer = Buffer.from(matches[2], 'base64');
             } else {
-                buffer = Buffer.from(userData.profileImageBase64, 'base64');
+                buffer = Buffer.from(req.body.profileImageBase64, 'base64');
             }
 
             const filename = 'profile-' + req.params.id + '-' + Date.now() + '.jpg';
@@ -488,7 +511,6 @@ app.put('/api/users/:id', async (req, res) => {
 
             fs.writeFileSync(filepath, buffer);
             userData.profileImage = filepath;
-            delete userData.profileImageBase64;
         }
 
         const user = await User.findByIdAndUpdate(req.params.id, userData, { new: true });
