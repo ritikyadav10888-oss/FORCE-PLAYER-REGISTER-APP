@@ -20,6 +20,7 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const Razorpay = require('razorpay');
+const { verifyToken, isOwner } = require('./middleware/authMiddleware');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -391,7 +392,7 @@ app.post('/api/users/:id/payout', async (req, res) => {
 });
 
 // --- Moderation Routes (Owner Only) ---
-app.put('/api/users/:id/verify', async (req, res) => {
+app.put('/api/users/:id/verify', verifyToken, isOwner, async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
         res.json(user);
@@ -400,7 +401,7 @@ app.put('/api/users/:id/verify', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/block', async (req, res) => {
+app.put('/api/users/:id/block', verifyToken, isOwner, async (req, res) => {
     try {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { isBlocked: blocked }, { new: true });
