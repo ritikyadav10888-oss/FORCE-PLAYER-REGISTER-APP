@@ -178,7 +178,13 @@ export const TournamentProvider = ({ children }) => {
 
     const verifyUser = async (userId) => {
         try {
-            const response = await fetch(`${API_URL}/users/${userId}/verify`, { method: 'PUT' });
+            const response = await fetch(`${API_URL}/users/${userId}/verify`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${user.token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
+                }
+            });
             const updated = await response.json();
             setOrganizers(prev => prev.map(o => o.id === userId ? { ...updated, id: updated._id } : o));
             setPlayers(prev => prev.map(p => p.id === userId ? { ...updated, id: updated._id } : p));
@@ -191,7 +197,11 @@ export const TournamentProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/users/${userId}/block`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${user.token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
+                },
                 body: JSON.stringify({ blocked: blockedStatus })
             });
             const updated = await response.json();
