@@ -8,7 +8,12 @@ const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'force_super_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
+    process.exit(1);
+}
+
 const BCRYPT_SALT_ROUNDS = 12; // Increased from 10 for better security
 
 const User = require('./models/User');
@@ -103,7 +108,10 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/force-app')
 // --- Auth Routes ---
 app.post('/api/auth/register', async (req, res) => {
     try {
-        console.log('Register Body:', req.body); // Keep debug
+        const safeBody = { ...req.body };
+        delete safeBody.password;
+        if (safeBody.aadharCardBase64) safeBody.aadharCardBase64 = '...base64...';
+        console.log('Register Body:', safeBody); // Keep debug, but safe
         const userData = req.body;
 
         // Validate password strength
