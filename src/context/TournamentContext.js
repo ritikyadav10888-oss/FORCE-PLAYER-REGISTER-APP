@@ -22,9 +22,13 @@ export const TournamentProvider = ({ children }) => {
         loadPlayers();
     }, [user?.role]); // Reload when role changes
 
-    const loadTournaments = async (role = '') => {
+    const loadTournaments = async () => {
         try {
-            const response = await fetch(`${API_URL}/tournaments?role=${role}`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } });
+            const headers = { 'Bypass-Tunnel-Reminder': 'true' };
+            if (user && user.token) {
+                headers['Authorization'] = `Bearer ${user.token}`;
+            }
+            const response = await fetch(`${API_URL}/tournaments`, { headers });
             const data = await response.json();
             // Map _id to id for frontend compatibility
             const mapped = Array.isArray(data) ? data.map(t => ({ ...t, id: t._id })) : [];

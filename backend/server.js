@@ -49,6 +49,21 @@ const loginLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Helper to extract role from token
+const verifyToken = (req) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return null;
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return decoded;
+    } catch (error) {
+        return null;
+    }
+};
+
 // Password Strength Validator
 const validatePassword = (password) => {
     const minLength = 8;
@@ -508,7 +523,9 @@ app.get('/api/config', (req, res) => {
 // --- Tournament Routes ---
 app.get('/api/tournaments', async (req, res) => {
     try {
-        const { role } = req.query; // Check if requester is OWNER
+        const decoded = verifyToken(req);
+        const role = decoded ? decoded.role : 'GUEST';
+
         let tournaments = await Tournament.find()
             .populate('organizerId', 'name email accessExpiryDate upiId mobile')
             .populate('players.user')
