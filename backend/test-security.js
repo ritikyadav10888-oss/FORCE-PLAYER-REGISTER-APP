@@ -116,6 +116,35 @@ const testSecurity = async () => {
         console.log(`  ⚠️  Network error: ${error.message}`);
     }
 
+    // Test 5: Authorization Check on Sensitive Endpoints
+    console.log('\n\n📋 Test 5: Authorization Check (Tournament Creation)');
+    console.log('-'.repeat(50));
+    try {
+        const response = await fetch(`${API_URL}/tournaments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: "Hacked Tournament",
+                gameType: "Cricket",
+                date: "2023-12-01",
+                time: "10:00",
+                organizerId: "507f1f77bcf86cd799439011",
+                address: "Nowhere",
+                entryFee: 100
+            })
+        });
+
+        if (response.status === 401 || response.status === 403) {
+             const data = await response.json();
+             console.log(`  ✅ Secured! Server rejected unauthorized request: ${response.status} - ${data.error}`);
+        } else {
+             console.log(`  ❌ VULNERABLE! Server accepted unauthorized request: ${response.status}`);
+        }
+
+    } catch (error) {
+        console.log(`  ⚠️  Network error: ${error.message}`);
+    }
+
     console.log('\n' + '='.repeat(50));
     console.log('✅ Security Test Suite Complete!');
     console.log('='.repeat(50));

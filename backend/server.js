@@ -100,6 +100,20 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/force-app')
     .then(() => console.log('MongoDB Connected'))
     .catch(err => console.error('MongoDB Connection Error:', err));
 
+// --- Auth Middleware ---
+const verifyToken = (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'Access Denied: No Token Provided' });
+
+        const verified = jwt.verify(token, JWT_SECRET);
+        req.user = verified;
+        next();
+    } catch (err) {
+        res.status(400).json({ error: 'Invalid Token' });
+    }
+};
+
 // --- Auth Routes ---
 app.post('/api/auth/register', async (req, res) => {
     try {
@@ -546,7 +560,7 @@ app.get('/api/tournaments', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments', async (req, res) => {
+app.post('/api/tournaments', verifyToken, async (req, res) => {
     try {
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
         const { organizerId } = req.body;
@@ -583,7 +597,7 @@ app.post('/api/tournaments', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id', async (req, res) => {
+app.put('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const { status } = req.body;
         const tournament = await Tournament.findById(req.params.id);
@@ -616,7 +630,7 @@ app.put('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/tournaments/:id', async (req, res) => {
+app.delete('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
@@ -632,7 +646,7 @@ app.delete('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id/matches/:matchIndex', async (req, res) => {
+app.put('/api/tournaments/:id/matches/:matchIndex', verifyToken, async (req, res) => {
     try {
         const { score1, score2, status, winner } = req.body;
         const tournament = await Tournament.findById(req.params.id);
@@ -810,7 +824,7 @@ app.post('/api/tournaments/:id/checkin', async (req, res) => {
 
 
 
-app.post('/api/tournaments/:id/announce', async (req, res) => {
+app.post('/api/tournaments/:id/announce', verifyToken, async (req, res) => {
     try {
         const { message } = req.body;
         const tournament = await Tournament.findById(req.params.id);
