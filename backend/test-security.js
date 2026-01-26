@@ -128,6 +128,27 @@ const testSecurity = async () => {
     console.log('- Create a test user account');
     console.log('- Try logging in 5 times with wrong password');
     console.log('- Account should lock for 30 minutes');
+
+    // Test 5: Missing Authentication on Admin Routes
+    console.log('\n\n📋 Test 5: Authorization Check on Admin Routes');
+    console.log('-'.repeat(50));
+    try {
+        // Try to access a restricted endpoint without token
+        const response = await fetch(`${API_URL}/users/507f1f77bcf86cd799439011/verify`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.status === 401) {
+            console.log(`  ✅ Unauthenticated access correctly blocked (401)`);
+        } else if (response.status === 403) {
+            console.log(`  ✅ Unauthorized access correctly blocked (403)`);
+        } else {
+            console.log(`  ❌ VULNERABLE: Request returned status ${response.status}`);
+        }
+    } catch (error) {
+        console.log(`  ⚠️  Network error: ${error.message}`);
+    }
 };
 
 // Run the tests

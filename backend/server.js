@@ -94,6 +94,37 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// --- Auth Middleware ---
+const verifyToken = async (req, res, next) => {
+    try {
+        let token;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+
+        if (!token) return res.status(401).json({ error: 'Not authorized, please login' });
+
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.id);
+
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        req.user = user;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+};
+
+const restrictTo = (...roles) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({ error: 'You do not have permission to perform this action' });
+        }
+        next();
+    };
+};
+
 
 // --- Database Connection ---
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/force-app')
@@ -365,7 +396,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // --- Payout Route ---
-app.post('/api/users/:id/payout', async (req, res) => {
+app.post('/api/users/:id/payout', verifyToken, restrictTo('OWNER'), async (req, res) => {
     try {
         const { amount } = req.body;
         const user = await User.findById(req.params.id);
@@ -391,7 +422,7 @@ app.post('/api/users/:id/payout', async (req, res) => {
 });
 
 // --- Moderation Routes (Owner Only) ---
-app.put('/api/users/:id/verify', async (req, res) => {
+app.put('/api/users/:id/verify', verifyToken, restrictTo('OWNER'), async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
         res.json(user);
@@ -400,7 +431,7 @@ app.put('/api/users/:id/verify', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/block', async (req, res) => {
+app.put('/api/users/:id/block', verifyToken, restrictTo('OWNER'), async (req, res) => {
     try {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { isBlocked: blocked }, { new: true });
@@ -410,7 +441,7 @@ app.put('/api/users/:id/block', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/update-access', async (req, res) => {
+app.put('/api/users/:id/update-access', verifyToken, restrictTo('OWNER'), async (req, res) => {
     try {
         const { durationDays } = req.body;
         const user = await User.findById(req.params.id);
