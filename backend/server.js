@@ -11,6 +11,23 @@ require('dotenv').config();
 const JWT_SECRET = process.env.JWT_SECRET || 'force_super_secret_key';
 const BCRYPT_SALT_ROUNDS = 12; // Increased from 10 for better security
 
+// Authentication Middleware
+const verifyToken = (req, res, next) => {
+    const authHeader = req.header('Authorization');
+    if (!authHeader) return res.status(401).json({ error: 'Access Denied: No Token Provided' });
+
+    const token = authHeader.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Access Denied: Malformed Token' });
+
+    try {
+        const verified = jwt.verify(token, JWT_SECRET);
+        req.user = verified;
+        next();
+    } catch (err) {
+        res.status(400).json({ error: 'Invalid Token' });
+    }
+};
+
 const User = require('./models/User');
 const Tournament = require('./models/Tournament');
 const Transaction = require('./models/Transaction');
@@ -468,8 +485,13 @@ app.get('/api/users/:id', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', verifyToken, async (req, res) => {
     try {
+        // Authorization: Self or Owner
+        if (req.user.id !== req.params.id && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: 'Access Denied: You can only update your own profile' });
+        }
+
         const userData = req.body;
 
         // Handle Base64 Profile Image
@@ -546,8 +568,13 @@ app.get('/api/tournaments', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments', async (req, res) => {
+app.post('/api/tournaments', verifyToken, async (req, res) => {
     try {
+        // Authorization: Organizer or Owner
+        if (req.user.role !== 'ORGANIZER' && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: 'Access Denied: Only Organizers can create tournaments' });
+        }
+
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
         const { organizerId } = req.body;
         const organizer = await User.findById(organizerId);
