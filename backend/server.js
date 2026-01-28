@@ -40,6 +40,28 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(cors());
 app.use('/uploads', express.static('uploads')); // Serve uploaded files
 
+// Auth Middleware
+const verifyToken = (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Access Denied. No token provided.' });
+
+        const verified = jwt.verify(token, JWT_SECRET);
+        req.user = verified;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid Token' });
+    }
+};
+
+const verifyOwner = (req, res, next) => {
+    if (req.user && req.user.role === 'OWNER') {
+        next();
+    } else {
+        res.status(403).json({ error: 'Access Denied. Owner privileges required.' });
+    }
+};
+
 // Rate Limiter for Login
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -365,7 +387,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // --- Payout Route ---
-app.post('/api/users/:id/payout', async (req, res) => {
+app.post('/api/users/:id/payout', verifyToken, verifyOwner, async (req, res) => {
     try {
         const { amount } = req.body;
         const user = await User.findById(req.params.id);
@@ -391,7 +413,7 @@ app.post('/api/users/:id/payout', async (req, res) => {
 });
 
 // --- Moderation Routes (Owner Only) ---
-app.put('/api/users/:id/verify', async (req, res) => {
+app.put('/api/users/:id/verify', verifyToken, verifyOwner, async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
         res.json(user);
@@ -400,7 +422,7 @@ app.put('/api/users/:id/verify', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/block', async (req, res) => {
+app.put('/api/users/:id/block', verifyToken, verifyOwner, async (req, res) => {
     try {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { isBlocked: blocked }, { new: true });
@@ -410,7 +432,7 @@ app.put('/api/users/:id/block', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id/update-access', async (req, res) => {
+app.put('/api/users/:id/update-access', verifyToken, verifyOwner, async (req, res) => {
     try {
         const { durationDays } = req.body;
         const user = await User.findById(req.params.id);
@@ -468,8 +490,13 @@ app.get('/api/users/:id', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', verifyToken, async (req, res) => {
     try {
+        // Prevent users from updating other users' profiles (unless OWNER)
+        if (req.user.id !== req.params.id && req.user.role !== 'OWNER') {
+            return res.status(403).json({ error: 'Access denied. You can only update your own profile.' });
+        }
+
         const userData = req.body;
 
         // Handle Base64 Profile Image
@@ -546,7 +573,7 @@ app.get('/api/tournaments', async (req, res) => {
     }
 });
 
-app.post('/api/tournaments', async (req, res) => {
+app.post('/api/tournaments', verifyToken, async (req, res) => {
     try {
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
         const { organizerId } = req.body;
@@ -583,7 +610,7 @@ app.post('/api/tournaments', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id', async (req, res) => {
+app.put('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const { status } = req.body;
         const tournament = await Tournament.findById(req.params.id);
@@ -616,7 +643,7 @@ app.put('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/tournaments/:id', async (req, res) => {
+app.delete('/api/tournaments/:id', verifyToken, async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
@@ -632,7 +659,7 @@ app.delete('/api/tournaments/:id', async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id/matches/:matchIndex', async (req, res) => {
+app.put('/api/tournaments/:id/matches/:matchIndex', verifyToken, async (req, res) => {
     try {
         const { score1, score2, status, winner } = req.body;
         const tournament = await Tournament.findById(req.params.id);
