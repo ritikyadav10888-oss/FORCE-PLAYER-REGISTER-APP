@@ -58,7 +58,11 @@ export const TournamentProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/tournaments`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Bypass-Tunnel-Reminder': 'true',
+                    'Authorization': user?.token ? `Bearer ${user.token}` : ''
+                },
                 body: JSON.stringify(tournamentData)
             });
             const newTournament = await response.json();
@@ -123,7 +127,10 @@ export const TournamentProvider = ({ children }) => {
     const deleteTournament = async (tournamentId) => {
         try {
             const response = await fetch(`${API_URL}/tournaments/${tournamentId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'Authorization': user?.token ? `Bearer ${user.token}` : ''
+                }
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
@@ -138,7 +145,10 @@ export const TournamentProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/tournaments/${tournamentId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': user?.token ? `Bearer ${user.token}` : ''
+                },
                 body: JSON.stringify({ status })
             });
             const updated = await response.json();
@@ -152,7 +162,10 @@ export const TournamentProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/tournaments/${tournamentId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': user?.token ? `Bearer ${user.token}` : ''
+                },
                 body: JSON.stringify(data)
             });
             const updated = await response.json();
