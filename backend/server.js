@@ -20,6 +20,7 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const Razorpay = require('razorpay');
+const verifyToken = require('./middleware/auth');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -482,8 +483,13 @@ app.get('/api/users/:id', async (req, res) => {
     }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', verifyToken, async (req, res) => {
     try {
+        // Prevent users from updating other users' profiles
+        if (req.user.role !== 'OWNER' && req.user.id !== req.params.id) {
+            return res.status(403).json({ error: 'Access denied. You can only update your own profile.' });
+        }
+
         const userData = req.body;
 
         // Handle Base64 Profile Image
@@ -564,6 +570,12 @@ app.post('/api/tournaments', verifyToken, async (req, res) => {
     try {
         console.log("Create Tournament Body:", JSON.stringify(req.body, (k, v) => k === 'bannerBase64' ? '...binary...' : v)); // Log body safely
         const { organizerId } = req.body;
+
+        // Ensure the user is creating a tournament for themselves (unless OWNER)
+        if (req.user.role !== 'OWNER' && req.user.id !== organizerId) {
+            return res.status(403).json({ error: 'Access denied.' });
+        }
+
         const organizer = await User.findById(organizerId);
 
         if (organizer && organizer.role === 'ORGANIZER' && organizer.accessExpiryDate) {
@@ -604,6 +616,11 @@ app.put('/api/tournaments/:id', verifyToken, async (req, res) => {
 
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
 
+        // Authorization check
+        if (req.user.role !== 'OWNER' && tournament.organizerId.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'Access denied. Only the organizer can update this tournament.' });
+        }
+
         // Generate matches logic when status moves to ONGOING
         if (status === 'ONGOING' && tournament.status === 'PENDING' && (!tournament.matches || tournament.matches.length === 0)) {
             // Filter only Check-In Players
@@ -635,6 +652,11 @@ app.delete('/api/tournaments/:id', verifyToken, async (req, res) => {
         const tournament = await Tournament.findById(req.params.id);
         if (!tournament) return res.status(404).json({ error: "Tournament not found" });
 
+        // Authorization check
+        if (req.user.role !== 'OWNER' && tournament.organizerId.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'Access denied.' });
+        }
+
         if (tournament.players.length > 0) {
             return res.status(400).json({ error: "Cannot delete tournament with enrolled players. Please cancel or remove players first." });
         }
@@ -646,10 +668,17 @@ app.delete('/api/tournaments/:id', verifyToken, async (req, res) => {
     }
 });
 
-app.put('/api/tournaments/:id/matches/:matchIndex', async (req, res) => {
+app.put('/api/tournaments/:id/matches/:matchIndex', verifyToken, async (req, res) => {
     try {
         const { score1, score2, status, winner } = req.body;
         const tournament = await Tournament.findById(req.params.id);
+
+        if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+        // Authorization check
+        if (req.user.role !== 'OWNER' && tournament.organizerId.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'Access denied.' });
+        }
 
         if (!tournament.matches[req.params.matchIndex]) {
             return res.status(404).json({ error: "Match not found" });
